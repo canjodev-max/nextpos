@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SaasPos.Backend.Data;
 using SaasPos.Backend.Models;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -22,9 +24,15 @@ namespace SaasPos.Backend.Controllers
             _configuration = configuration;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             var user = await _context.Users.Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Email == request.Email);
 
@@ -36,6 +44,13 @@ namespace SaasPos.Backend.Controllers
             var tokenHandler = new JwtSecurityTokenHandler();
             var jwtSecret = _configuration["JWT_SECRET"]
                 ?? throw new InvalidOperationException("JWT_SECRET is not configured.");
+            var jwtIssuer = _configuration["JWT_ISSUER"]
+                ?? throw new InvalidOperationException("JWT_ISSUER is not configured.");
+            var jwtAudience = _configuration["JWT_AUDIENCE"]
+                ?? throw new InvalidOperationException("JWT_AUDIENCE is not configured.");
+            var jwtExpiresInMinutes = int.TryParse(_configuration["JWT_EXPIRES_IN_MINUTES"], out var expires)
+                ? expires
+                : 60;
             var key = Encoding.ASCII.GetBytes(jwtSecret);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
@@ -45,7 +60,9 @@ namespace SaasPos.Backend.Controllers
                     new Claim("tenant_id", user.TenantId.ToString()),
                     new Claim(ClaimTypes.Role, user.Role.Name)
                 }),
-                Expires = DateTime.UtcNow.AddDays(7),
+                Expires = DateTime.UtcNow.AddMinutes(jwtExpiresInMinutes),
+                Issuer = jwtIssuer,
+                Audience = jwtAudience,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
@@ -76,7 +93,11 @@ namespace SaasPos.Backend.Controllers
 
     public class LoginRequest
     {
+        [Required]
+        [EmailAddress]
         public string Email { get; set; }
+
+        [Required]
         public string Password { get; set; }
     }
 }

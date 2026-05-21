@@ -378,6 +378,7 @@ namespace SaasPos.Backend.Data
         public DbSet<CashMovement> CashMovements { get; set; }
         public DbSet<CashSalesSummary> CashSalesSummaries { get; set; }
         public DbSet<CashAuditLog> CashAuditLogs { get; set; }
+        public DbSet<Invoice> Invoices { get; set; }
         public DbSet<Customer> Customers { get; set; }
         
         public DbSet<CustomerDebt> CustomerDebts { get; set; }

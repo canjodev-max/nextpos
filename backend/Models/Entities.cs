@@ -108,6 +108,7 @@ namespace SaasPos.Backend.Models
         public Customer Customer { get; set; }
         public List<SaleItem> Items { get; set; } = new();
         public List<Payment> Payments { get; set; } = new();
+        public List<Invoice> Invoices { get; set; } = new();
     }
 
     public class SaleItem 
@@ -254,6 +255,24 @@ namespace SaasPos.Backend.Models
         public CustomerDebt CustomerDebt { get; set; }
     }
 
+    public class Invoice
+    {
+        [Key]
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid SaleId { get; set; }
+        public Guid TenantId { get; set; }
+        public string Status { get; set; } = "PENDING"; // PENDING, ISSUED, FAILED
+        public string? ExternalId { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? InvoiceUrl { get; set; }
+        public string? ResponseData { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        [ForeignKey("SaleId")]
+        public Sale Sale { get; set; }
+    }
+
     public class Notification
     {
         [Key]
@@ -280,5 +299,44 @@ namespace SaasPos.Backend.Models
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        // ── Datos de Facturación Electrónica Paraguay (SIFEN / e-Kuatia) ──────────
+        // Datos del contribuyente emisor
+        public string? Ruc { get; set; }                        // RUC con dígito verificador (ej: "80069563-1")
+        public string? RazonSocial { get; set; }                // Razón social registrada en SET
+        public string? NombreFantasia { get; set; }             // Nombre de fantasía / comercial
+        public string? ActividadEconomicaCodigo { get; set; }   // Código de actividad económica (ej: "4690")
+        public string? ActividadEconomicaDescripcion { get; set; } // Descripción de la actividad
+        public int TipoContribuyente { get; set; } = 2;         // 1=Persona Física, 2=Persona Jurídica
+        public int TipoRegimen { get; set; } = 8;               // 1=Normal, 7=Pequeño Contribuyente, 8=Microempresa
+
+        // Timbrado
+        public string? TimbradoNumero { get; set; }             // Número de timbrado (ej: "12558946")
+        public DateTime? TimbradoFecha { get; set; }            // Fecha de inicio del timbrado
+
+        // Establecimiento
+        public string CodigoEstablecimiento { get; set; } = "001";  // Código del establecimiento
+        public string PuntoExpedicion { get; set; } = "001";        // Punto de expedición
+        public string? DireccionEstablecimiento { get; set; }       // Dirección del establecimiento
+        public int Departamento { get; set; } = 11;                 // Código de departamento (11=Alto Paraná, etc.)
+        public string? DepartamentoDescripcion { get; set; }
+        public int Distrito { get; set; } = 145;
+        public string? DistritoDescripcion { get; set; }
+        public int Ciudad { get; set; } = 3432;
+        public string? CiudadDescripcion { get; set; }
+        public string? TelefonoEstablecimiento { get; set; }
+        public string? EmailEstablecimiento { get; set; }
+        public string? DenominacionEstablecimiento { get; set; }    // Nombre/denominación del local
+
+        // Certificado digital y seguridad
+        public string? CertificadoPath { get; set; }            // Ruta al archivo .p12 en el servidor
+        public string? CertificadoPassword { get; set; }        // Contraseña del certificado (encriptada)
+        public string? Csc { get; set; }                        // Código de Seguridad del Contribuyente (para QR)
+        public string? CscId { get; set; }                      // ID del CSC asignado por la SET
+
+        // Configuración SIFEN
+        public bool SifenHabilitado { get; set; } = false;      // Si tiene SIFEN activo
+        public string SifenAmbiente { get; set; } = "test";     // "test" | "prod"
+        public int UltimoNumeroDe { get; set; } = 0;            // Último número de DE emitido (autoincremental)
     }
 }

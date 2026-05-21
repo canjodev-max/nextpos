@@ -75,7 +75,33 @@ namespace SaasPos.Backend.Controllers
                 Phone = request.Phone,
                 Address = request.Address,
                 Plan = request.Plan ?? "FREE",
-                IsActive = true
+                IsActive = true,
+                // SIFEN / e-Kuatia
+                Ruc = request.Ruc,
+                RazonSocial = request.RazonSocial,
+                NombreFantasia = request.NombreFantasia,
+                ActividadEconomicaCodigo = request.ActividadEconomicaCodigo,
+                ActividadEconomicaDescripcion = request.ActividadEconomicaDescripcion,
+                TipoContribuyente = request.TipoContribuyente ?? 2,
+                TipoRegimen = request.TipoRegimen ?? 8,
+                TimbradoNumero = request.TimbradoNumero,
+                TimbradoFecha = request.TimbradoFecha,
+                CodigoEstablecimiento = request.CodigoEstablecimiento ?? "001",
+                PuntoExpedicion = request.PuntoExpedicion ?? "001",
+                DireccionEstablecimiento = request.DireccionEstablecimiento,
+                Departamento = request.Departamento ?? 11,
+                DepartamentoDescripcion = request.DepartamentoDescripcion,
+                Distrito = request.Distrito ?? 145,
+                DistritoDescripcion = request.DistritoDescripcion,
+                Ciudad = request.Ciudad ?? 3432,
+                CiudadDescripcion = request.CiudadDescripcion,
+                TelefonoEstablecimiento = request.TelefonoEstablecimiento,
+                EmailEstablecimiento = request.EmailEstablecimiento,
+                DenominacionEstablecimiento = request.DenominacionEstablecimiento,
+                Csc = request.Csc,
+                CscId = request.CscId,
+                SifenHabilitado = request.SifenHabilitado ?? false,
+                SifenAmbiente = request.SifenAmbiente ?? "test",
             };
             _context.Tenants.Add(tenant);
 
@@ -124,6 +150,32 @@ namespace SaasPos.Backend.Controllers
             tenant.Address = request.Address;
             tenant.Plan = request.Plan;
             tenant.IsActive = request.IsActive;
+            // SIFEN / e-Kuatia
+            tenant.Ruc = request.Ruc;
+            tenant.RazonSocial = request.RazonSocial;
+            tenant.NombreFantasia = request.NombreFantasia;
+            tenant.ActividadEconomicaCodigo = request.ActividadEconomicaCodigo;
+            tenant.ActividadEconomicaDescripcion = request.ActividadEconomicaDescripcion;
+            tenant.TipoContribuyente = request.TipoContribuyente ?? 2;
+            tenant.TipoRegimen = request.TipoRegimen ?? 8;
+            tenant.TimbradoNumero = request.TimbradoNumero;
+            tenant.TimbradoFecha = request.TimbradoFecha;
+            tenant.CodigoEstablecimiento = request.CodigoEstablecimiento ?? "001";
+            tenant.PuntoExpedicion = request.PuntoExpedicion ?? "001";
+            tenant.DireccionEstablecimiento = request.DireccionEstablecimiento;
+            tenant.Departamento = request.Departamento ?? 11;
+            tenant.DepartamentoDescripcion = request.DepartamentoDescripcion;
+            tenant.Distrito = request.Distrito ?? 145;
+            tenant.DistritoDescripcion = request.DistritoDescripcion;
+            tenant.Ciudad = request.Ciudad ?? 3432;
+            tenant.CiudadDescripcion = request.CiudadDescripcion;
+            tenant.TelefonoEstablecimiento = request.TelefonoEstablecimiento;
+            tenant.EmailEstablecimiento = request.EmailEstablecimiento;
+            tenant.DenominacionEstablecimiento = request.DenominacionEstablecimiento;
+            tenant.Csc = request.Csc;
+            tenant.CscId = request.CscId;
+            tenant.SifenHabilitado = request.SifenHabilitado ?? tenant.SifenHabilitado;
+            tenant.SifenAmbiente = request.SifenAmbiente ?? tenant.SifenAmbiente;
             tenant.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -186,6 +238,32 @@ namespace SaasPos.Backend.Controllers
         public string AdminName { get; set; }
         public string AdminEmail { get; set; }
         public string AdminPassword { get; set; }
+        // SIFEN / e-Kuatia
+        public string? Ruc { get; set; }
+        public string? RazonSocial { get; set; }
+        public string? NombreFantasia { get; set; }
+        public string? ActividadEconomicaCodigo { get; set; }
+        public string? ActividadEconomicaDescripcion { get; set; }
+        public int? TipoContribuyente { get; set; }
+        public int? TipoRegimen { get; set; }
+        public string? TimbradoNumero { get; set; }
+        public DateTime? TimbradoFecha { get; set; }
+        public string? CodigoEstablecimiento { get; set; }
+        public string? PuntoExpedicion { get; set; }
+        public string? DireccionEstablecimiento { get; set; }
+        public int? Departamento { get; set; }
+        public string? DepartamentoDescripcion { get; set; }
+        public int? Distrito { get; set; }
+        public string? DistritoDescripcion { get; set; }
+        public int? Ciudad { get; set; }
+        public string? CiudadDescripcion { get; set; }
+        public string? TelefonoEstablecimiento { get; set; }
+        public string? EmailEstablecimiento { get; set; }
+        public string? DenominacionEstablecimiento { get; set; }
+        public string? Csc { get; set; }
+        public string? CscId { get; set; }
+        public bool? SifenHabilitado { get; set; }
+        public string? SifenAmbiente { get; set; }
     }
 
     public class UpdateTenantRequest
@@ -197,5 +275,31 @@ namespace SaasPos.Backend.Controllers
         public string? Address { get; set; }
         public string Plan { get; set; }
         public bool IsActive { get; set; }
+        // SIFEN / e-Kuatia
+        public string? Ruc { get; set; }
+        public string? RazonSocial { get; set; }
+        public string? NombreFantasia { get; set; }
+        public string? ActividadEconomicaCodigo { get; set; }
+        public string? ActividadEconomicaDescripcion { get; set; }
+        public int? TipoContribuyente { get; set; }
+        public int? TipoRegimen { get; set; }
+        public string? TimbradoNumero { get; set; }
+        public DateTime? TimbradoFecha { get; set; }
+        public string? CodigoEstablecimiento { get; set; }
+        public string? PuntoExpedicion { get; set; }
+        public string? DireccionEstablecimiento { get; set; }
+        public int? Departamento { get; set; }
+        public string? DepartamentoDescripcion { get; set; }
+        public int? Distrito { get; set; }
+        public string? DistritoDescripcion { get; set; }
+        public int? Ciudad { get; set; }
+        public string? CiudadDescripcion { get; set; }
+        public string? TelefonoEstablecimiento { get; set; }
+        public string? EmailEstablecimiento { get; set; }
+        public string? DenominacionEstablecimiento { get; set; }
+        public string? Csc { get; set; }
+        public string? CscId { get; set; }
+        public bool? SifenHabilitado { get; set; }
+        public string? SifenAmbiente { get; set; }
     }
 }

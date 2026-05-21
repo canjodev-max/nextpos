@@ -16,17 +16,15 @@ namespace SaasPos.Backend.Controllers
         private readonly InventoryService _inventory;
         private readonly DebtService _debtService;
         private readonly CashService _cashService;
+    private readonly FactPyService _factPy;
 
-        public SalesController(AppDbContext context, InventoryService inventory, DebtService debtService, CashService cashService)
-        {
-            _context = context;
-            _inventory = inventory;
-            _debtService = debtService;
-            _cashService = cashService;
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> CreateSale([FromBody] CreateSaleRequest request)
+    public SalesController(AppDbContext context, InventoryService inventory, DebtService debtService, CashService cashService, FactPyService factPy)
+    {
+        _context = context;
+        _inventory = inventory;
+        _debtService = debtService;
+        _cashService = cashService;
+        _factPy = factPy;
         {
             var userIdClaim = User.FindFirst("id")?.Value;
             var tenantIdClaim = User.FindFirst("tenant_id")?.Value;
@@ -102,8 +100,12 @@ namespace SaasPos.Backend.Controllers
             if (string.IsNullOrEmpty(tenantIdClaim) || !Guid.TryParse(tenantIdClaim, out var tenantId))
                 return Unauthorized();
 
-            var sale = await _context.Sales.FindAsync(id);
-            if (sale == null || sale.TenantId != tenantId) return NotFound();
+            var sale = await _context.Sales
+                .Include(s => s.Items)
+                .ThenInclude(i => i.Product)
+                .Include(s => s.Customer)
+                .FirstOrDefaultAsync(s => s.Id == id && s.TenantId == tenantId);
+            if (sale == null) return NotFound();
 
             // Validate Cash Register if needed (except for Credit only, but usually checkout requires open register)
             if (request.CashRegisterId != Guid.Empty)
@@ -161,7 +163,25 @@ namespace SaasPos.Backend.Controllers
             }
 
             await _context.SaveChangesAsync();
-            return Ok(new { status = sale.Status, change = totalPaid - sale.Total });
+
+            Invoice? invoice = null;
+            if (sale.PaymentStatus == "PAID")
+            {
+                invoice = await _factPy.GenerateInvoiceAsync(sale);
+            }
+
+            return Ok(new
+            {
+                status = sale.Status,
+                change = totalPaid - sale.Total,
+                invoice = invoice == null ? null : new
+                {
+                    invoice.Id,
+                    invoice.Status,
+                    invoice.InvoiceNumber,
+                    invoice.InvoiceUrl
+                }
+            });
         }
 
         [HttpGet]
@@ -202,15 +222,29 @@ namespace SaasPos.Backend.Controllers
             var sale = await _context.Sales
                 .Include(s => s.Items)
                 .ThenInclude(i => i.Product)
+                .Include(s => s.Invoices)
                 .FirstOrDefaultAsync(s => s.Id == id && s.TenantId == tenantId);
 
             if (sale == null) return NotFound();
+
+            var invoice = sale.Invoices
+                .OrderByDescending(i => i.CreatedAt)
+                .Select(i => new
+                {
+                    i.Id,
+                    i.Status,
+                    i.InvoiceNumber,
+                    i.InvoiceUrl,
+                    i.ExternalId
+                })
+                .FirstOrDefault();
 
             return Ok(new
             {
                 sale.Id,
                 sale.Total,
                 sale.Status,
+                Invoice = invoice,
                 Items = sale.Items.Select(i => new {
                     i.Id,
                     i.ProductId,
@@ -219,6 +253,66 @@ namespace SaasPos.Backend.Controllers
                     i.Subtotal,
                     ProductName = i.Product.Name // Send name for frontend
                 })
+            });
+        }
+
+        [HttpGet("{id}/invoice")]
+        public async Task<IActionResult> GetInvoice(Guid id)
+        {
+            var tenantIdClaim = User.FindFirst("tenant_id")?.Value;
+            if (string.IsNullOrEmpty(tenantIdClaim) || !Guid.TryParse(tenantIdClaim, out var tenantId))
+                return Unauthorized();
+
+            var invoice = await _context.Invoices
+                .Where(i => i.SaleId == id && i.TenantId == tenantId)
+                .OrderByDescending(i => i.CreatedAt)
+                .Select(i => new
+                {
+                    i.Id,
+                    i.Status,
+                    i.InvoiceNumber,
+                    i.InvoiceUrl,
+                    i.ExternalId,
+                    i.CreatedAt,
+                    i.UpdatedAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (invoice == null) return NotFound();
+            return Ok(invoice);
+        }
+
+        [HttpPost("{id}/invoice/retry")]
+        public async Task<IActionResult> RetryInvoice(Guid id)
+        {
+            var tenantIdClaim = User.FindFirst("tenant_id")?.Value;
+            if (string.IsNullOrEmpty(tenantIdClaim) || !Guid.TryParse(tenantIdClaim, out var tenantId))
+                return Unauthorized();
+
+            var sale = await _context.Sales
+                .Include(s => s.Items)
+                .ThenInclude(i => i.Product)
+                .Include(s => s.Customer)
+                .FirstOrDefaultAsync(s => s.Id == id && s.TenantId == tenantId);
+
+            if (sale == null) return NotFound();
+
+            var invoice = await _context.Invoices
+                .Where(i => i.SaleId == id && i.TenantId == tenantId)
+                .OrderByDescending(i => i.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (invoice == null) return NotFound("No invoice found for this sale.");
+            if (invoice.Status == "ISSUED") return BadRequest("Invoice already issued.");
+
+            var retry = await _factPy.GenerateInvoiceAsync(sale, invoice);
+            return Ok(new
+            {
+                retry.Id,
+                retry.Status,
+                retry.InvoiceNumber,
+                retry.InvoiceUrl,
+                retry.ExternalId
             });
         }
         [HttpDelete("{id}/items/{itemId}")]

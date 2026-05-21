@@ -37,6 +37,7 @@ export default function CheckoutModal({
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+    const [invoiceInfo, setInvoiceInfo] = useState<{ status: string; number?: string; url?: string } | null>(null)
 
     // Cash State
     const [cashReceived, setCashReceived] = useState<string>('')
@@ -53,6 +54,7 @@ export default function CheckoutModal({
             setLoading(false)
             setError(null)
             setSuccess(false)
+            setInvoiceInfo(null)
             setCashReceived('')
             setChange(0)
             setDueDate('')
@@ -132,9 +134,17 @@ export default function CheckoutModal({
                 })
             })
 
+            const data = await res.json()
             if (!res.ok) {
-                const err = await res.text()
-                throw new Error(err)
+                throw new Error(data?.message || JSON.stringify(data))
+            }
+
+            if (data.invoice) {
+                setInvoiceInfo({
+                    status: data.invoice.status,
+                    number: data.invoice.invoiceNumber,
+                    url: data.invoice.invoiceUrl
+                })
             }
 
             setSuccess(true)
@@ -278,8 +288,19 @@ export default function CheckoutModal({
                                     </div>
                                     <h2 className="text-5xl font-black uppercase italic tracking-tighter text-white">¡Venta Exitosa!</h2>
                                     <p className="text-emerald-100 text-sm font-bold uppercase tracking-[0.2em] mt-2">Imprimiendo comprobante...</p>
-                                    <div className="mt-12 flex gap-4">
+                                    <div className="mt-12 flex flex-col gap-4">
                                         <div className="px-6 py-3 bg-white/20 rounded-full text-white text-[10px] font-black uppercase tracking-widest">Vuelto: {formatMoney(change > 0 ? change : 0)}</div>
+                                        {invoiceInfo && (
+                                            <div className="p-4 rounded-3xl bg-slate-950/90 border border-white/10 text-left">
+                                                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300 font-black">Factura</p>
+                                                <p className="text-sm font-black text-white mt-2">{invoiceInfo.number ?? invoiceInfo.status}</p>
+                                                {invoiceInfo.url && (
+                                                    <a href={invoiceInfo.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] font-black text-primary">
+                                                        Ver comprobante
+                                                    </a>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

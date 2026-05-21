@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -9,7 +12,13 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add Services
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    var policy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+    options.Filters.Add(new AuthorizeFilter(policy));
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -53,11 +62,27 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Authentication
 var jwtSecret = builder.Configuration["JWT_SECRET"];
-if (string.IsNullOrEmpty(jwtSecret))
+var jwtIssuer = builder.Configuration["JWT_ISSUER"];
+var jwtAudience = builder.Configuration["JWT_AUDIENCE"];
+var jwtExpiresInMinutes = builder.Configuration["JWT_EXPIRES_IN_MINUTES"];
+
+if (string.IsNullOrWhiteSpace(jwtSecret))
 {
-    Console.WriteLine("WARNING: JWT_SECRET not configured. Using insecure default. Set JWT_SECRET in Railway Variables.");
-    jwtSecret = "INSECURE_DEFAULT_CHANGE_ME_IN_PRODUCTION_12345678901234567890";
+    throw new InvalidOperationException("JWT_SECRET must be configured. Set JWT_SECRET in environment variables.");
 }
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+{
+    throw new InvalidOperationException("JWT_ISSUER must be configured. Set JWT_ISSUER in environment variables.");
+}
+if (string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException("JWT_AUDIENCE must be configured. Set JWT_AUDIENCE in environment variables.");
+}
+
+var jwtLifetimeMinutes = int.TryParse(jwtExpiresInMinutes, out var expires)
+    ? expires
+    : 60;
+
 var key = Encoding.ASCII.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
@@ -68,15 +93,21 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-    options.SaveToken = true;
+    options.SaveToken = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromMinutes(1)
     };
 });
+
+builder.Services.AddAuthorization();
 
 // CORS (Allow Frontend)
 builder.Services.AddCors(options =>
@@ -84,17 +115,34 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         var frontendUrl = builder.Configuration["FRONTEND_URL"];
-        if (string.IsNullOrEmpty(frontendUrl))
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-        else
-            policy.WithOrigins(frontendUrl).AllowAnyMethod().AllowAnyHeader();
+        if (string.IsNullOrWhiteSpace(frontendUrl))
+        {
+            throw new InvalidOperationException("FRONTEND_URL must be configured. Set FRONTEND_URL in appsettings or environment variables.");
+        }
+
+        policy.WithOrigins(frontendUrl)
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
+});
+
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
+    options.HttpsPort = 443;
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 });
 
 // Services
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<CashService>();
 builder.Services.AddScoped<DebtService>();
+builder.Services.AddHttpClient<FactPyService>();
+builder.Services.Configure<FactPyOptions>(builder.Configuration.GetSection("FactPy"));
 
 var app = builder.Build();
 
@@ -154,12 +202,62 @@ using (var scope = app.Services.CreateScope())
                 ""IsRead"" boolean NOT NULL DEFAULT false,
                 ""CreatedAt"" timestamp NOT NULL DEFAULT now()
             );",
+            @"CREATE TABLE IF NOT EXISTS ""Invoices"" (
+                ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""SaleId"" uuid NOT NULL,
+                ""TenantId"" uuid NOT NULL,
+                ""Status"" text NOT NULL DEFAULT 'PENDING',
+                ""ExternalId"" text NULL,
+                ""InvoiceNumber"" text NULL,
+                ""InvoiceUrl"" text NULL,
+                ""ResponseData"" text NULL,
+                ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+            );",
         };
         foreach (var sql in columnMigrations)
         {
             try { db.Database.ExecuteSqlRaw(sql); }
             catch (Exception colEx) { Console.WriteLine($"Column migration skipped: {colEx.Message}"); }
         }
+
+            // Migración: campos SIFEN / e-Kuatia en Tenants
+            var sifenMigrations = new[]
+            {
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""Ruc"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""RazonSocial"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""NombreFantasia"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""ActividadEconomicaCodigo"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""ActividadEconomicaDescripcion"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TipoContribuyente"" integer NOT NULL DEFAULT 2;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TipoRegimen"" integer NOT NULL DEFAULT 8;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TimbradoNumero"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TimbradoFecha"" timestamp NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""CodigoEstablecimiento"" text NOT NULL DEFAULT '001';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""PuntoExpedicion"" text NOT NULL DEFAULT '001';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DireccionEstablecimiento"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""Departamento"" integer NOT NULL DEFAULT 11;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DepartamentoDescripcion"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""Distrito"" integer NOT NULL DEFAULT 145;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DistritoDescripcion"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""Ciudad"" integer NOT NULL DEFAULT 3432;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""CiudadDescripcion"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TelefonoEstablecimiento"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""EmailEstablecimiento"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DenominacionEstablecimiento"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""CertificadoPath"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""CertificadoPassword"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""Csc"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""CscId"" text NULL;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""SifenHabilitado"" boolean NOT NULL DEFAULT false;",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""SifenAmbiente"" text NOT NULL DEFAULT 'test';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""UltimoNumeroDe"" integer NOT NULL DEFAULT 0;",
+            };
+            foreach (var sql in sifenMigrations)
+            {
+                try { db.Database.ExecuteSqlRaw(sql); }
+                catch (Exception colEx) { Console.WriteLine($"SIFEN migration skipped: {colEx.Message}"); }
+            }
 
         // Fix: limpiar imageUrl con placehold.co (datos sucios de versiones anteriores)
         try
@@ -206,6 +304,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Config Pipeline
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -218,6 +325,4 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Railway asigna el puerto via variable PORT
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-app.Run($"http://0.0.0.0:{port}");
+app.Run();

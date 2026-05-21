@@ -313,6 +313,35 @@ export default function SuperAdminPage() {
     )
 }
 
+// ── Tipo extendido con campos SIFEN ───────────────────────────────────────────
+type TenantFull = Tenant & {
+    ruc?: string
+    razonSocial?: string
+    nombreFantasia?: string
+    actividadEconomicaCodigo?: string
+    actividadEconomicaDescripcion?: string
+    tipoContribuyente?: number
+    tipoRegimen?: number
+    timbradoNumero?: string
+    timbradoFecha?: string
+    codigoEstablecimiento?: string
+    puntoExpedicion?: string
+    direccionEstablecimiento?: string
+    departamento?: number
+    departamentoDescripcion?: string
+    distrito?: number
+    distritoDescripcion?: string
+    ciudad?: number
+    ciudadDescripcion?: string
+    telefonoEstablecimiento?: string
+    emailEstablecimiento?: string
+    denominacionEstablecimiento?: string
+    csc?: string
+    cscId?: string
+    sifenHabilitado?: boolean
+    sifenAmbiente?: string
+}
+
 // ── Modal crear/editar tenant ──────────────────────────────────────────────────
 function TenantModal({
     tenant,
@@ -327,21 +356,82 @@ function TenantModal({
 }) {
     const isEdit = !!tenant
     const [loading, setLoading] = useState(false)
+    const [tab, setTab] = useState<"negocio" | "sifen" | "admin">("negocio")
+    const t = tenant as TenantFull | null
     const [form, setForm] = useState({
-        name: tenant?.name ?? "",
-        slug: tenant?.slug ?? "",
-        email: tenant?.email ?? "",
-        phone: tenant?.phone ?? "",
+        // Datos generales
+        name: t?.name ?? "",
+        slug: t?.slug ?? "",
+        email: t?.email ?? "",
+        phone: t?.phone ?? "",
         address: "",
-        plan: tenant?.plan ?? "FREE",
-        isActive: tenant?.isActive ?? true,
-        // Solo para creación
+        plan: t?.plan ?? "FREE",
+        isActive: t?.isActive ?? true,
+        // Admin inicial (solo creación)
         adminName: "",
         adminEmail: "",
         adminPassword: "",
+        // SIFEN — Contribuyente
+        ruc: t?.ruc ?? "",
+        razonSocial: t?.razonSocial ?? "",
+        nombreFantasia: t?.nombreFantasia ?? "",
+        actividadEconomicaCodigo: t?.actividadEconomicaCodigo ?? "",
+        actividadEconomicaDescripcion: t?.actividadEconomicaDescripcion ?? "",
+        tipoContribuyente: String(t?.tipoContribuyente ?? "2"),
+        tipoRegimen: String(t?.tipoRegimen ?? "8"),
+        // SIFEN — Timbrado
+        timbradoNumero: t?.timbradoNumero ?? "",
+        timbradoFecha: t?.timbradoFecha?.slice(0, 10) ?? "",
+        // SIFEN — Establecimiento
+        codigoEstablecimiento: t?.codigoEstablecimiento ?? "001",
+        puntoExpedicion: t?.puntoExpedicion ?? "001",
+        direccionEstablecimiento: t?.direccionEstablecimiento ?? "",
+        departamento: String(t?.departamento ?? "11"),
+        departamentoDescripcion: t?.departamentoDescripcion ?? "",
+        distrito: String(t?.distrito ?? "145"),
+        distritoDescripcion: t?.distritoDescripcion ?? "",
+        ciudad: String(t?.ciudad ?? "3432"),
+        ciudadDescripcion: t?.ciudadDescripcion ?? "",
+        telefonoEstablecimiento: t?.telefonoEstablecimiento ?? "",
+        emailEstablecimiento: t?.emailEstablecimiento ?? "",
+        denominacionEstablecimiento: t?.denominacionEstablecimiento ?? "",
+        // SIFEN — Certificado y seguridad
+        csc: t?.csc ?? "",
+        cscId: t?.cscId ?? "",
+        // SIFEN — Config
+        sifenHabilitado: t?.sifenHabilitado ?? false,
+        sifenAmbiente: t?.sifenAmbiente ?? "test",
     })
 
     const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+    const sifenFields = () => ({
+        ruc: form.ruc || null,
+        razonSocial: form.razonSocial || null,
+        nombreFantasia: form.nombreFantasia || null,
+        actividadEconomicaCodigo: form.actividadEconomicaCodigo || null,
+        actividadEconomicaDescripcion: form.actividadEconomicaDescripcion || null,
+        tipoContribuyente: parseInt(form.tipoContribuyente),
+        tipoRegimen: parseInt(form.tipoRegimen),
+        timbradoNumero: form.timbradoNumero || null,
+        timbradoFecha: form.timbradoFecha || null,
+        codigoEstablecimiento: form.codigoEstablecimiento || "001",
+        puntoExpedicion: form.puntoExpedicion || "001",
+        direccionEstablecimiento: form.direccionEstablecimiento || null,
+        departamento: parseInt(form.departamento),
+        departamentoDescripcion: form.departamentoDescripcion || null,
+        distrito: parseInt(form.distrito),
+        distritoDescripcion: form.distritoDescripcion || null,
+        ciudad: parseInt(form.ciudad),
+        ciudadDescripcion: form.ciudadDescripcion || null,
+        telefonoEstablecimiento: form.telefonoEstablecimiento || null,
+        emailEstablecimiento: form.emailEstablecimiento || null,
+        denominacionEstablecimiento: form.denominacionEstablecimiento || null,
+        csc: form.csc || null,
+        cscId: form.cscId || null,
+        sifenHabilitado: form.sifenHabilitado,
+        sifenAmbiente: form.sifenAmbiente,
+    })
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -352,8 +442,8 @@ function TenantModal({
                 : `${API_URL}/api/tenants`
             const method = isEdit ? "PUT" : "POST"
             const body = isEdit
-                ? { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, isActive: form.isActive }
-                : { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, adminName: form.adminName, adminEmail: form.adminEmail, adminPassword: form.adminPassword }
+                ? { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, isActive: form.isActive, ...sifenFields() }
+                : { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, adminName: form.adminName, adminEmail: form.adminEmail, adminPassword: form.adminPassword, ...sifenFields() }
 
             const res = await fetch(url, { method, headers, body: JSON.stringify(body) })
             const data = await res.json()
@@ -367,10 +457,20 @@ function TenantModal({
         }
     }
 
+    const inputCls = "mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    const labelCls = "text-xs font-bold text-slate-400 uppercase tracking-wider"
+
+    const tabs = [
+        { id: "negocio" as const, label: "Negocio", icon: "store" },
+        { id: "sifen" as const, label: "e-Kuatia / SIFEN", icon: "receipt_long" },
+        ...(!isEdit ? [{ id: "admin" as const, label: "Administrador", icon: "manage_accounts" }] : []),
+    ]
+
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-slate-700">
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[92vh] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
                     <h2 className="text-lg font-black text-white uppercase tracking-tight italic">
                         {isEdit ? "Editar Negocio" : "Nuevo Negocio"}
                     </h2>
@@ -378,70 +478,251 @@ function TenantModal({
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nombre del Negocio *</label>
-                            <input required value={form.name} onChange={(e) => set("name", e.target.value)}
-                                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Slug * <span className="text-slate-500 normal-case font-normal">(único, sin espacios)</span></label>
-                            <input required value={form.slug} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan</label>
-                            <select value={form.plan} onChange={(e) => set("plan", e.target.value)}
-                                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                {PLANS.map((p) => <option key={p}>{p}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email</label>
-                            <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)}
-                                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Teléfono</label>
-                            <input value={form.phone} onChange={(e) => set("phone", e.target.value)}
-                                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                        </div>
-                        {isEdit && (
-                            <div className="col-span-2 flex items-center gap-3">
-                                <input type="checkbox" id="isActive" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)}
-                                    className="w-4 h-4 accent-primary" />
-                                <label htmlFor="isActive" className="text-sm text-slate-300">Negocio activo</label>
+
+                {/* Tabs */}
+                <div className="flex border-b border-slate-700 shrink-0">
+                    {tabs.map(tb => (
+                        <button key={tb.id} type="button" onClick={() => setTab(tb.id)}
+                            className={`flex items-center gap-1.5 px-5 py-3 text-xs font-black uppercase tracking-widest transition-colors border-b-2 ${tab === tb.id ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
+                            <span className="material-symbols-outlined text-base">{tb.icon}</span>
+                            {tb.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="overflow-y-auto flex-1 p-6">
+
+                        {/* ── Tab: Negocio ── */}
+                        {tab === "negocio" && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className={labelCls}>Nombre del Negocio *</label>
+                                    <input required value={form.name} onChange={(e) => set("name", e.target.value)} className={inputCls} placeholder="Ej: Supermercado Don Juan" />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Slug * <span className="text-slate-500 normal-case font-normal">(único, sin espacios)</span></label>
+                                    <input required value={form.slug} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))} className={inputCls} placeholder="supermercado-don-juan" />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Plan</label>
+                                    <select value={form.plan} onChange={(e) => set("plan", e.target.value)} className={inputCls}>
+                                        {PLANS.map((p) => <option key={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Email de contacto</label>
+                                    <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className={inputCls} placeholder="contacto@negocio.com" />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Teléfono</label>
+                                    <input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} placeholder="0981-000000" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className={labelCls}>Dirección</label>
+                                    <input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} placeholder="Av. Principal 123" />
+                                </div>
+                                {isEdit && (
+                                    <div className="col-span-2 flex items-center gap-3">
+                                        <input type="checkbox" id="isActive" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="w-4 h-4 accent-primary" />
+                                        <label htmlFor="isActive" className="text-sm text-slate-300">Negocio activo</label>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── Tab: e-Kuatia / SIFEN ── */}
+                        {tab === "sifen" && (
+                            <div className="space-y-6">
+                                {/* Toggle SIFEN */}
+                                <div className="flex items-center justify-between bg-slate-700/50 rounded-xl px-4 py-3 border border-slate-600">
+                                    <div>
+                                        <p className="text-sm font-black text-white">Facturación Electrónica (e-Kuatia)</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Habilitar integración con SIFEN — SET Paraguay</p>
+                                    </div>
+                                    <button type="button" onClick={() => set("sifenHabilitado", !form.sifenHabilitado)}
+                                        className={`relative w-12 h-6 rounded-full transition-colors ${form.sifenHabilitado ? "bg-primary" : "bg-slate-600"}`}>
+                                        <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.sifenHabilitado ? "translate-x-7" : "translate-x-1"}`} />
+                                    </button>
+                                </div>
+
+                                {/* Ambiente */}
+                                <div>
+                                    <label className={labelCls}>Ambiente SIFEN</label>
+                                    <div className="flex gap-3 mt-1">
+                                        {(["test", "prod"] as const).map(a => (
+                                            <button key={a} type="button" onClick={() => set("sifenAmbiente", a)}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-black uppercase tracking-widest border transition-colors ${form.sifenAmbiente === a ? (a === "prod" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-amber-600 border-amber-500 text-white") : "bg-slate-700 border-slate-600 text-slate-400 hover:text-white"}`}>
+                                                {a === "test" ? "🧪 Pruebas" : "🚀 Producción"}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {form.sifenAmbiente === "prod" && (
+                                        <p className="text-xs text-amber-400 mt-1.5">⚠ Producción emite documentos fiscales reales con validez legal.</p>
+                                    )}
+                                </div>
+
+                                {/* Contribuyente */}
+                                <div>
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base">badge</span>Datos del Contribuyente
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={labelCls}>RUC *</label>
+                                            <input value={form.ruc} onChange={(e) => set("ruc", e.target.value)} className={inputCls} placeholder="80069563-1" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Tipo Contribuyente</label>
+                                            <select value={form.tipoContribuyente} onChange={(e) => set("tipoContribuyente", e.target.value)} className={inputCls}>
+                                                <option value="1">1 — Persona Física</option>
+                                                <option value="2">2 — Persona Jurídica</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className={labelCls}>Razón Social *</label>
+                                            <input value={form.razonSocial} onChange={(e) => set("razonSocial", e.target.value)} className={inputCls} placeholder="EMPRESA S.A." />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className={labelCls}>Nombre de Fantasía</label>
+                                            <input value={form.nombreFantasia} onChange={(e) => set("nombreFantasia", e.target.value)} className={inputCls} placeholder="Nombre comercial" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Cód. Actividad Económica</label>
+                                            <input value={form.actividadEconomicaCodigo} onChange={(e) => set("actividadEconomicaCodigo", e.target.value)} className={inputCls} placeholder="4690" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Descripción Actividad</label>
+                                            <input value={form.actividadEconomicaDescripcion} onChange={(e) => set("actividadEconomicaDescripcion", e.target.value)} className={inputCls} placeholder="Venta al por mayor" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Tipo de Régimen</label>
+                                            <select value={form.tipoRegimen} onChange={(e) => set("tipoRegimen", e.target.value)} className={inputCls}>
+                                                <option value="1">1 — Régimen Normal</option>
+                                                <option value="7">7 — Pequeño Contribuyente</option>
+                                                <option value="8">8 — Microempresa</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Timbrado */}
+                                <div>
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base">approval</span>Timbrado
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={labelCls}>Número de Timbrado *</label>
+                                            <input value={form.timbradoNumero} onChange={(e) => set("timbradoNumero", e.target.value)} className={inputCls} placeholder="12558946" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Fecha de Inicio</label>
+                                            <input type="date" value={form.timbradoFecha} onChange={(e) => set("timbradoFecha", e.target.value)} className={inputCls} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Establecimiento */}
+                                <div>
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base">location_on</span>Establecimiento
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={labelCls}>Código Establecimiento</label>
+                                            <input value={form.codigoEstablecimiento} onChange={(e) => set("codigoEstablecimiento", e.target.value)} className={inputCls} placeholder="001" maxLength={3} />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Punto de Expedición</label>
+                                            <input value={form.puntoExpedicion} onChange={(e) => set("puntoExpedicion", e.target.value)} className={inputCls} placeholder="001" maxLength={3} />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Denominación del Local</label>
+                                            <input value={form.denominacionEstablecimiento} onChange={(e) => set("denominacionEstablecimiento", e.target.value)} className={inputCls} placeholder="Sucursal Central" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Teléfono del Local</label>
+                                            <input value={form.telefonoEstablecimiento} onChange={(e) => set("telefonoEstablecimiento", e.target.value)} className={inputCls} placeholder="061-000000" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className={labelCls}>Dirección del Establecimiento</label>
+                                            <input value={form.direccionEstablecimiento} onChange={(e) => set("direccionEstablecimiento", e.target.value)} className={inputCls} placeholder="Av. Principal 123, Barrio Centro" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Email del Establecimiento</label>
+                                            <input type="email" value={form.emailEstablecimiento} onChange={(e) => set("emailEstablecimiento", e.target.value)} className={inputCls} placeholder="local@empresa.com" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Departamento (código)</label>
+                                            <input value={form.departamento} onChange={(e) => set("departamento", e.target.value)} className={inputCls} placeholder="11" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Descripción Departamento</label>
+                                            <input value={form.departamentoDescripcion} onChange={(e) => set("departamentoDescripcion", e.target.value)} className={inputCls} placeholder="ALTO PARANA" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Distrito (código)</label>
+                                            <input value={form.distrito} onChange={(e) => set("distrito", e.target.value)} className={inputCls} placeholder="145" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Descripción Distrito</label>
+                                            <input value={form.distritoDescripcion} onChange={(e) => set("distritoDescripcion", e.target.value)} className={inputCls} placeholder="CIUDAD DEL ESTE" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Ciudad (código)</label>
+                                            <input value={form.ciudad} onChange={(e) => set("ciudad", e.target.value)} className={inputCls} placeholder="3432" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Descripción Ciudad</label>
+                                            <input value={form.ciudadDescripcion} onChange={(e) => set("ciudadDescripcion", e.target.value)} className={inputCls} placeholder="CIUDAD DEL ESTE" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Certificado y CSC */}
+                                <div>
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base">security</span>Certificado Digital y Seguridad
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={labelCls}>CSC — Código de Seguridad</label>
+                                            <input value={form.csc} onChange={(e) => set("csc", e.target.value)} className={inputCls} placeholder="Código otorgado por la SET" />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>ID del CSC</label>
+                                            <input value={form.cscId} onChange={(e) => set("cscId", e.target.value)} className={inputCls} placeholder="0001" />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-2">El certificado digital (.p12) se configura en el servidor. El CSC es el código para generar el QR del KuDE.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Tab: Administrador (solo creación) ── */}
+                        {tab === "admin" && !isEdit && (
+                            <div className="space-y-4">
+                                <p className="text-xs text-slate-400">Se creará un usuario con rol <span className="text-white font-bold">ADMIN</span> para este negocio.</p>
+                                <div>
+                                    <label className={labelCls}>Nombre completo *</label>
+                                    <input required value={form.adminName} onChange={(e) => set("adminName", e.target.value)} className={inputCls} placeholder="Juan Pérez" />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Email *</label>
+                                    <input required type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} className={inputCls} placeholder="admin@negocio.com" />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Contraseña * <span className="text-slate-500 normal-case font-normal">(mín. 6 caracteres)</span></label>
+                                    <input required type="password" minLength={6} value={form.adminPassword} onChange={(e) => set("adminPassword", e.target.value)} className={inputCls} />
+                                </div>
                             </div>
                         )}
                     </div>
 
-                    {!isEdit && (
-                        <>
-                            <div className="border-t border-slate-700 pt-4">
-                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Administrador Inicial</p>
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nombre *</label>
-                                        <input required value={form.adminName} onChange={(e) => set("adminName", e.target.value)}
-                                            className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email *</label>
-                                        <input required type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)}
-                                            className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contraseña *</label>
-                                        <input required type="password" minLength={6} value={form.adminPassword} onChange={(e) => set("adminPassword", e.target.value)}
-                                            className="mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    <div className="flex gap-3 pt-2">
+                    {/* Footer */}
+                    <div className="flex gap-3 px-6 py-4 border-t border-slate-700 shrink-0">
                         <button type="button" onClick={onClose}
                             className="flex-1 py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-bold hover:bg-slate-700 transition-colors">
                             Cancelar
