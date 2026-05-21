@@ -25,6 +25,10 @@ namespace SaasPos.Backend.Controllers
         _debtService = debtService;
         _cashService = cashService;
         _factPy = factPy;
+    }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateSale([FromBody] CreateSaleRequest request)
         {
             var userIdClaim = User.FindFirst("id")?.Value;
             var tenantIdClaim = User.FindFirst("tenant_id")?.Value;
