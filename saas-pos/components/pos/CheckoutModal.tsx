@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -165,11 +165,7 @@ export default function CheckoutModal({
         }
     }
 
-    const handlePrintTicket = () => {
-        const win = window.open('', '_blank', 'width=420,height=700')
-        if (!win) return
-
-        // Obtener nombre del vendedor desde el token guardado en login
+    const handlePrintTicket = useCallback(() => {
         const userData = localStorage.getItem('user')
         const vendedor = userData ? JSON.parse(userData).name : 'N/A'
 
@@ -177,90 +173,102 @@ export default function CheckoutModal({
             const hasDiscount = item.discountPercentage && item.discountPercentage > 0
             const originalPrice = item.originalPrice ?? item.price
             const discountedPrice = item.price
-
             return `
                 <tr>
-                    <td colspan="3" style="padding-top:6px; font-weight:bold;">${item.name}</td>
+                    <td colspan="3" class="item-name">${item.name}</td>
                 </tr>
                 <tr>
-                    <td style="padding-left:8px; color:#555;">
+                    <td class="item-qty">
                         ${item.quantity} x
                         ${hasDiscount
-                            ? `<span style="text-decoration:line-through; color:#999;">₲ ${originalPrice.toLocaleString('es-PY')}</span>
-                               <span style="color:#e53e3e; font-weight:bold;"> ₲ ${discountedPrice.toLocaleString('es-PY')}</span>
-                               <span style="color:#e53e3e; font-size:10px;"> (-${item.discountPercentage}%)</span>`
+                            ? `<span class="orig">₲ ${originalPrice.toLocaleString('es-PY')}</span>
+                               <span class="disc"> ₲ ${discountedPrice.toLocaleString('es-PY')} (-${item.discountPercentage}%)</span>`
                             : `₲ ${discountedPrice.toLocaleString('es-PY')}`
                         }
                     </td>
-                    <td style="text-align:right; font-weight:bold;">₲ ${item.subtotal.toLocaleString('es-PY')}</td>
-                </tr>
-            `
+                    <td class="item-total">₲ ${item.subtotal.toLocaleString('es-PY')}</td>
+                </tr>`
         }).join('')
 
-        win.document.write(`
-            <html>
-            <head>
-                <title>Ticket</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: 'Courier New', monospace; font-size: 12px; padding: 16px; max-width: 320px; margin: 0 auto; }
-                    h2 { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 2px; }
-                    .sub { text-align: center; font-size: 10px; color: #555; margin-bottom: 8px; }
-                    .divider { border: none; border-top: 1px dashed #000; margin: 8px 0; }
-                    table { width: 100%; border-collapse: collapse; }
-                    td { font-size: 12px; vertical-align: top; padding: 1px 2px; }
-                    .total-row td { font-size: 14px; font-weight: bold; padding-top: 6px; }
-                    .change-row td { font-size: 12px; padding-top: 2px; }
-                    .footer { text-align: center; font-size: 10px; color: #555; margin-top: 12px; }
-                </style>
-            </head>
-            <body>
-                <h2>TICKET DE VENTA</h2>
-                <p class="sub">${new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                <hr class="divider">
-                <table>
-                    <tr>
-                        <td colspan="2"><b>Cliente:</b> ${customerName || 'Consumidor Final'}</td>
-                    </tr>
-                    <tr>
-                        <td colspan="2"><b>Vendedor:</b> ${vendedor}</td>
-                    </tr>
-                </table>
-                <hr class="divider">
-                <table>
-                    <thead>
-                        <tr>
-                            <td colspan="2" style="font-weight:bold; font-size:10px; text-transform:uppercase; color:#555;">Detalle</td>
-                            <td style="text-align:right; font-weight:bold; font-size:10px; text-transform:uppercase; color:#555;">Total</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemsHtml}
-                    </tbody>
-                </table>
-                <hr class="divider">
-                <table>
-                    <tr class="total-row">
-                        <td colspan="2">TOTAL</td>
-                        <td style="text-align:right;">₲ ${total.toLocaleString('es-PY')}</td>
-                    </tr>
-                    ${saleChange > 0 ? `
-                    <tr class="change-row">
-                        <td colspan="2">Vuelto</td>
-                        <td style="text-align:right;">₲ ${saleChange.toLocaleString('es-PY')}</td>
-                    </tr>` : ''}
-                </table>
-                <hr class="divider">
-                <p class="footer">¡Gracias por su compra!</p>
-            </body>
-            </html>
-        `)
-        win.document.close()
-        win.print()
-        win.close()
-        onSuccess()
-        onClose()
-    }
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ticket</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Courier New',monospace; font-size:12px; width:300px; padding:12px; }
+  h2 { text-align:center; font-size:14px; font-weight:bold; margin-bottom:2px; }
+  .center { text-align:center; font-size:10px; color:#555; margin-bottom:6px; }
+  hr { border:none; border-top:1px dashed #000; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; }
+  td { font-size:11px; padding:1px 2px; vertical-align:top; }
+  .label { font-weight:bold; }
+  .item-name { font-weight:bold; padding-top:5px; }
+  .item-qty { padding-left:8px; color:#333; }
+  .item-total { text-align:right; font-weight:bold; }
+  .orig { text-decoration:line-through; color:#999; }
+  .disc { color:#c00; font-weight:bold; }
+  .total-label { font-size:13px; font-weight:bold; }
+  .total-val { font-size:13px; font-weight:bold; text-align:right; }
+  .footer { text-align:center; font-size:10px; color:#555; margin-top:8px; }
+</style>
+</head>
+<body>
+  <h2>TICKET DE VENTA</h2>
+  <p class="center">${new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })}</p>
+  <hr>
+  <table>
+    <tr><td class="label">Cliente:</td><td>${customerName || 'Consumidor Final'}</td></tr>
+    <tr><td class="label">Vendedor:</td><td>${vendedor}</td></tr>
+  </table>
+  <hr>
+  <table>
+    <tr>
+      <td colspan="2" style="font-size:10px;font-weight:bold;text-transform:uppercase;color:#555;">Detalle</td>
+      <td style="font-size:10px;font-weight:bold;text-transform:uppercase;color:#555;text-align:right;">Total</td>
+    </tr>
+    ${itemsHtml}
+  </table>
+  <hr>
+  <table>
+    <tr>
+      <td colspan="2" class="total-label">TOTAL</td>
+      <td class="total-val">₲ ${total.toLocaleString('es-PY')}</td>
+    </tr>
+    ${saleChange > 0 ? `<tr><td colspan="2">Vuelto</td><td style="text-align:right;">₲ ${saleChange.toLocaleString('es-PY')}</td></tr>` : ''}
+  </table>
+  <hr>
+  <p class="footer">¡Gracias por su compra!</p>
+</body>
+</html>`
+
+        // Usar iframe oculto para evitar bloqueo de popups
+        const iframe = document.createElement('iframe')
+        iframe.style.position = 'fixed'
+        iframe.style.top = '-9999px'
+        iframe.style.left = '-9999px'
+        iframe.style.width = '320px'
+        iframe.style.height = '600px'
+        document.body.appendChild(iframe)
+
+        const doc = iframe.contentDocument || iframe.contentWindow?.document
+        if (!doc) { document.body.removeChild(iframe); return }
+
+        doc.open()
+        doc.write(html)
+        doc.close()
+
+        iframe.onload = () => {
+            iframe.contentWindow?.focus()
+            iframe.contentWindow?.print()
+            setTimeout(() => {
+                document.body.removeChild(iframe)
+                onSuccess()
+                onClose()
+            }, 500)
+        }
+    }, [items, customerName, total, saleChange, onSuccess, onClose])
 
     const handlePrintInvoice = () => {
         // Factura e-Kuatia — abre el KuDE si está disponible
