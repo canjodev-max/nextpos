@@ -311,4 +311,8 @@ app.MapControllers();
 // Health check endpoint para Railway
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 
-app.Run();
+// Railway inyecta PORT — ASPNETCORE_URLS tiene prioridad si está seteada, por eso la limpiamos
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{port}");
+
+app.Run($"http://0.0.0.0:{port}");
