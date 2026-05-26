@@ -308,4 +308,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Health check endpoint para Railway
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
+
 app.Run();
