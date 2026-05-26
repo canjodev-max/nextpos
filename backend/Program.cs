@@ -73,7 +73,7 @@ if (string.IsNullOrWhiteSpace(jwtSecret))
 
 var jwtLifetimeMinutes = int.TryParse(jwtExpiresInMinutes, out var expires)
     ? expires
-    : 60;
+    : 10080; // 7 días por defecto
 
 var key = Encoding.ASCII.GetBytes(jwtSecret);
 

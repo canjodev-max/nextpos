@@ -700,6 +700,14 @@ export default function POSClient() {
                 customerId={selectedCustomer?.id || null}
                 customerName={selectedCustomer?.name || null}
                 registerId={registerId}
+                items={cart.map(item => ({
+                    name: item.product.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    subtotal: item.price * item.quantity,
+                    originalPrice: Number(item.product.price),
+                    discountPercentage: item.product.discountPercentage ?? 0
+                }))}
             />
             <WeightInputModal
                 isOpen={weightModalOpen}

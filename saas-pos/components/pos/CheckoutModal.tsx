@@ -19,6 +19,7 @@ interface CheckoutModalProps {
     customerId: string | null
     customerName: string | null
     registerId: string | null
+    items?: { name: string; quantity: number; price: number; subtotal: number; originalPrice?: number; discountPercentage?: number }[]
 }
 
 type PaymentMethod = 'CASH' | 'CARD' | 'QR' | 'CREDIT' | null
@@ -31,7 +32,8 @@ export default function CheckoutModal({
     onSuccess,
     customerId,
     customerName,
-    registerId
+    registerId,
+    items = []
 }: CheckoutModalProps) {
     const [method, setMethod] = useState<PaymentMethod>(null)
     const [loading, setLoading] = useState(false)
@@ -164,30 +166,94 @@ export default function CheckoutModal({
     }
 
     const handlePrintTicket = () => {
-        // Ticket simple — abre ventana de impresión del navegador
-        const win = window.open('', '_blank', 'width=400,height=600')
+        const win = window.open('', '_blank', 'width=420,height=700')
         if (!win) return
+
+        // Obtener nombre del vendedor desde el token guardado en login
+        const userData = localStorage.getItem('user')
+        const vendedor = userData ? JSON.parse(userData).name : 'N/A'
+
+        const itemsHtml = items.map(item => {
+            const hasDiscount = item.discountPercentage && item.discountPercentage > 0
+            const originalPrice = item.originalPrice ?? item.price
+            const discountedPrice = item.price
+
+            return `
+                <tr>
+                    <td colspan="3" style="padding-top:6px; font-weight:bold;">${item.name}</td>
+                </tr>
+                <tr>
+                    <td style="padding-left:8px; color:#555;">
+                        ${item.quantity} x
+                        ${hasDiscount
+                            ? `<span style="text-decoration:line-through; color:#999;">₲ ${originalPrice.toLocaleString('es-PY')}</span>
+                               <span style="color:#e53e3e; font-weight:bold;"> ₲ ${discountedPrice.toLocaleString('es-PY')}</span>
+                               <span style="color:#e53e3e; font-size:10px;"> (-${item.discountPercentage}%)</span>`
+                            : `₲ ${discountedPrice.toLocaleString('es-PY')}`
+                        }
+                    </td>
+                    <td style="text-align:right; font-weight:bold;">₲ ${item.subtotal.toLocaleString('es-PY')}</td>
+                </tr>
+            `
+        }).join('')
+
         win.document.write(`
-            <html><head><title>Ticket</title>
-            <style>
-                body { font-family: monospace; font-size: 12px; padding: 16px; max-width: 300px; margin: 0 auto; }
-                h2 { text-align: center; font-size: 16px; margin-bottom: 4px; }
-                .divider { border-top: 1px dashed #000; margin: 8px 0; }
-                .row { display: flex; justify-content: space-between; }
-                .total { font-size: 16px; font-weight: bold; }
-                .center { text-align: center; }
-                .small { font-size: 10px; color: #555; }
-            </style></head><body>
-            <h2>TICKET DE VENTA</h2>
-            <p class="center small">${new Date().toLocaleString('es-PY')}</p>
-            <div class="divider"></div>
-            <div class="row"><span>Cliente:</span><span>${customerName || 'Consumidor Final'}</span></div>
-            <div class="divider"></div>
-            <div class="row total"><span>TOTAL:</span><span>₲ ${total.toLocaleString('es-PY')}</span></div>
-            ${saleChange > 0 ? `<div class="row"><span>Vuelto:</span><span>₲ ${saleChange.toLocaleString('es-PY')}</span></div>` : ''}
-            <div class="divider"></div>
-            <p class="center small">¡Gracias por su compra!</p>
-            </body></html>
+            <html>
+            <head>
+                <title>Ticket</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Courier New', monospace; font-size: 12px; padding: 16px; max-width: 320px; margin: 0 auto; }
+                    h2 { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+                    .sub { text-align: center; font-size: 10px; color: #555; margin-bottom: 8px; }
+                    .divider { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+                    table { width: 100%; border-collapse: collapse; }
+                    td { font-size: 12px; vertical-align: top; padding: 1px 2px; }
+                    .total-row td { font-size: 14px; font-weight: bold; padding-top: 6px; }
+                    .change-row td { font-size: 12px; padding-top: 2px; }
+                    .footer { text-align: center; font-size: 10px; color: #555; margin-top: 12px; }
+                </style>
+            </head>
+            <body>
+                <h2>TICKET DE VENTA</h2>
+                <p class="sub">${new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                <hr class="divider">
+                <table>
+                    <tr>
+                        <td colspan="2"><b>Cliente:</b> ${customerName || 'Consumidor Final'}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"><b>Vendedor:</b> ${vendedor}</td>
+                    </tr>
+                </table>
+                <hr class="divider">
+                <table>
+                    <thead>
+                        <tr>
+                            <td colspan="2" style="font-weight:bold; font-size:10px; text-transform:uppercase; color:#555;">Detalle</td>
+                            <td style="text-align:right; font-weight:bold; font-size:10px; text-transform:uppercase; color:#555;">Total</td>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <hr class="divider">
+                <table>
+                    <tr class="total-row">
+                        <td colspan="2">TOTAL</td>
+                        <td style="text-align:right;">₲ ${total.toLocaleString('es-PY')}</td>
+                    </tr>
+                    ${saleChange > 0 ? `
+                    <tr class="change-row">
+                        <td colspan="2">Vuelto</td>
+                        <td style="text-align:right;">₲ ${saleChange.toLocaleString('es-PY')}</td>
+                    </tr>` : ''}
+                </table>
+                <hr class="divider">
+                <p class="footer">¡Gracias por su compra!</p>
+            </body>
+            </html>
         `)
         win.document.close()
         win.print()

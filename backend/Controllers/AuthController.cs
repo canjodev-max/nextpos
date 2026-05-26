@@ -48,7 +48,7 @@ namespace SaasPos.Backend.Controllers
             var jwtAudience = _configuration["JWT_AUDIENCE"] ?? "simpos";
             var jwtExpiresInMinutes = int.TryParse(_configuration["JWT_EXPIRES_IN_MINUTES"], out var expires)
                 ? expires
-                : 60;
+                : 10080; // 7 días por defecto
             var key = Encoding.ASCII.GetBytes(jwtSecret);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
