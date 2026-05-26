@@ -62,21 +62,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Authentication
 var jwtSecret = builder.Configuration["JWT_SECRET"];
-var jwtIssuer = builder.Configuration["JWT_ISSUER"];
-var jwtAudience = builder.Configuration["JWT_AUDIENCE"];
+var jwtIssuer = builder.Configuration["JWT_ISSUER"] ?? "simpos";
+var jwtAudience = builder.Configuration["JWT_AUDIENCE"] ?? "simpos";
 var jwtExpiresInMinutes = builder.Configuration["JWT_EXPIRES_IN_MINUTES"];
 
 if (string.IsNullOrWhiteSpace(jwtSecret))
 {
     throw new InvalidOperationException("JWT_SECRET must be configured. Set JWT_SECRET in environment variables.");
-}
-if (string.IsNullOrWhiteSpace(jwtIssuer))
-{
-    throw new InvalidOperationException("JWT_ISSUER must be configured. Set JWT_ISSUER in environment variables.");
-}
-if (string.IsNullOrWhiteSpace(jwtAudience))
-{
-    throw new InvalidOperationException("JWT_AUDIENCE must be configured. Set JWT_AUDIENCE in environment variables.");
 }
 
 var jwtLifetimeMinutes = int.TryParse(jwtExpiresInMinutes, out var expires)
@@ -92,16 +84,14 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+    options.RequireHttpsMetadata = false; // Railway maneja HTTPS en el edge
     options.SaveToken = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = true,
-        ValidAudience = jwtAudience,
+        ValidateIssuer = false,
+        ValidateAudience = false,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(1)
     };
@@ -124,12 +114,6 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
-});
-
-builder.Services.AddHttpsRedirection(options =>
-{
-    options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
-    options.HttpsPort = 443;
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -306,12 +290,11 @@ using (var scope = app.Services.CreateScope())
 // Config Pipeline
 app.UseForwardedHeaders();
 
-if (!app.Environment.IsDevelopment())
+// Railway maneja HTTPS en el edge — no redirigir internamente o causa 308 loop
+if (app.Environment.IsDevelopment())
 {
-    app.UseHsts();
+    app.UseHttpsRedirection();
 }
-
-app.UseHttpsRedirection();
 
 if (app.Environment.IsDevelopment())
 {

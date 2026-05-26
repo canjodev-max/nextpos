@@ -44,10 +44,8 @@ namespace SaasPos.Backend.Controllers
             var tokenHandler = new JwtSecurityTokenHandler();
             var jwtSecret = _configuration["JWT_SECRET"]
                 ?? throw new InvalidOperationException("JWT_SECRET is not configured.");
-            var jwtIssuer = _configuration["JWT_ISSUER"]
-                ?? throw new InvalidOperationException("JWT_ISSUER is not configured.");
-            var jwtAudience = _configuration["JWT_AUDIENCE"]
-                ?? throw new InvalidOperationException("JWT_AUDIENCE is not configured.");
+            var jwtIssuer = _configuration["JWT_ISSUER"] ?? "simpos";
+            var jwtAudience = _configuration["JWT_AUDIENCE"] ?? "simpos";
             var jwtExpiresInMinutes = int.TryParse(_configuration["JWT_EXPIRES_IN_MINUTES"], out var expires)
                 ? expires
                 : 60;
