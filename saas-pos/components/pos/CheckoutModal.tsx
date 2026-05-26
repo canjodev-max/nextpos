@@ -37,7 +37,9 @@ export default function CheckoutModal({
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+    const [showPrintPrompt, setShowPrintPrompt] = useState(false)
     const [invoiceInfo, setInvoiceInfo] = useState<{ status: string; number?: string; url?: string } | null>(null)
+    const [saleChange, setSaleChange] = useState(0)
 
     // Cash State
     const [cashReceived, setCashReceived] = useState<string>('')
@@ -54,9 +56,11 @@ export default function CheckoutModal({
             setLoading(false)
             setError(null)
             setSuccess(false)
+            setShowPrintPrompt(false)
             setInvoiceInfo(null)
             setCashReceived('')
             setChange(0)
+            setSaleChange(0)
             setDueDate('')
         }
     }, [isOpen, total])
@@ -147,17 +151,66 @@ export default function CheckoutModal({
                 })
             }
 
+            const finalChange = method === 'CASH' ? parseFloat(cashReceived) - total : 0
+            setSaleChange(finalChange > 0 ? finalChange : 0)
             setSuccess(true)
-            setTimeout(() => {
-                onSuccess()
-                onClose()
-            }, 1500)
+            setShowPrintPrompt(true)
 
         } catch (err: any) {
             setError(err.message)
         } finally {
             setLoading(false)
         }
+    }
+
+    const handlePrintTicket = () => {
+        // Ticket simple — abre ventana de impresión del navegador
+        const win = window.open('', '_blank', 'width=400,height=600')
+        if (!win) return
+        win.document.write(`
+            <html><head><title>Ticket</title>
+            <style>
+                body { font-family: monospace; font-size: 12px; padding: 16px; max-width: 300px; margin: 0 auto; }
+                h2 { text-align: center; font-size: 16px; margin-bottom: 4px; }
+                .divider { border-top: 1px dashed #000; margin: 8px 0; }
+                .row { display: flex; justify-content: space-between; }
+                .total { font-size: 16px; font-weight: bold; }
+                .center { text-align: center; }
+                .small { font-size: 10px; color: #555; }
+            </style></head><body>
+            <h2>TICKET DE VENTA</h2>
+            <p class="center small">${new Date().toLocaleString('es-PY')}</p>
+            <div class="divider"></div>
+            <div class="row"><span>Cliente:</span><span>${customerName || 'Consumidor Final'}</span></div>
+            <div class="divider"></div>
+            <div class="row total"><span>TOTAL:</span><span>₲ ${total.toLocaleString('es-PY')}</span></div>
+            ${saleChange > 0 ? `<div class="row"><span>Vuelto:</span><span>₲ ${saleChange.toLocaleString('es-PY')}</span></div>` : ''}
+            <div class="divider"></div>
+            <p class="center small">¡Gracias por su compra!</p>
+            </body></html>
+        `)
+        win.document.close()
+        win.print()
+        win.close()
+        onSuccess()
+        onClose()
+    }
+
+    const handlePrintInvoice = () => {
+        // Factura e-Kuatia — abre el KuDE si está disponible
+        if (invoiceInfo?.url) {
+            window.open(invoiceInfo.url, '_blank')
+        } else {
+            // Si la factura está pendiente, mostrar info disponible
+            alert(`Factura ${invoiceInfo?.number ?? 'pendiente'} — Estado: ${invoiceInfo?.status ?? 'procesando'}`)
+        }
+        onSuccess()
+        onClose()
+    }
+
+    const handleSkipPrint = () => {
+        onSuccess()
+        onClose()
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -281,26 +334,76 @@ export default function CheckoutModal({
                                 </div>
                             )}
 
-                            {success && (
-                                <div className="absolute inset-0 bg-emerald-500 z-50 flex flex-col items-center justify-center animate-in zoom-in slide-in-from-bottom-20 duration-500">
-                                    <div className="size-32 rounded-full bg-white flex items-center justify-center text-emerald-500 mb-8 shadow-2xl">
-                                        <span className="material-symbols-outlined text-6xl font-black">check_circle</span>
+                            {success && showPrintPrompt && (
+                                <div className="absolute inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center animate-in zoom-in duration-300 p-8">
+                                    {/* Vuelto */}
+                                    {saleChange > 0 && (
+                                        <div className="mb-6 px-8 py-3 bg-emerald-500/20 border border-emerald-500/40 rounded-full">
+                                            <span className="text-emerald-400 font-black text-sm uppercase tracking-widest">
+                                                Vuelto: ₲ {saleChange.toLocaleString('es-PY')}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Check animado */}
+                                    <div className="size-24 rounded-full bg-emerald-500 flex items-center justify-center mb-6 shadow-2xl shadow-emerald-500/30">
+                                        <span className="material-symbols-outlined text-5xl text-white">check</span>
                                     </div>
-                                    <h2 className="text-5xl font-black uppercase italic tracking-tighter text-white">¡Venta Exitosa!</h2>
-                                    <p className="text-emerald-100 text-sm font-bold uppercase tracking-[0.2em] mt-2">Imprimiendo comprobante...</p>
-                                    <div className="mt-12 flex flex-col gap-4">
-                                        <div className="px-6 py-3 bg-white/20 rounded-full text-white text-[10px] font-black uppercase tracking-widest">Vuelto: {formatMoney(change > 0 ? change : 0)}</div>
-                                        {invoiceInfo && (
-                                            <div className="p-4 rounded-3xl bg-slate-950/90 border border-white/10 text-left">
-                                                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300 font-black">Factura</p>
-                                                <p className="text-sm font-black text-white mt-2">{invoiceInfo.number ?? invoiceInfo.status}</p>
-                                                {invoiceInfo.url && (
-                                                    <a href={invoiceInfo.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] font-black text-primary">
-                                                        Ver comprobante
-                                                    </a>
-                                                )}
+                                    <h2 className="text-4xl font-black uppercase italic tracking-tighter text-white mb-2">¡Venta Exitosa!</h2>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-10">
+                                        {customerId ? 'Factura electrónica generada' : 'Venta registrada'}
+                                    </p>
+
+                                    {/* Pregunta de impresión */}
+                                    <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4">
+                                        <p className="text-center text-sm font-black uppercase tracking-widest text-slate-300">
+                                            ¿Desea imprimir el comprobante?
+                                        </p>
+
+                                        {customerId ? (
+                                            // Con cliente → ofrecer factura e-Kuatia
+                                            <div className="space-y-3">
+                                                <button
+                                                    onClick={handlePrintInvoice}
+                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                                >
+                                                    <span className="material-symbols-outlined text-xl">receipt_long</span>
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-black">Imprimir Factura</p>
+                                                        <p className="text-[10px] opacity-70 font-bold">e-Kuatia / SIFEN</p>
+                                                    </div>
+                                                </button>
+                                                <button
+                                                    onClick={handlePrintTicket}
+                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+                                                >
+                                                    <span className="material-symbols-outlined text-xl">receipt</span>
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-black">Solo Ticket</p>
+                                                        <p className="text-[10px] opacity-70 font-bold">Comprobante simple</p>
+                                                    </div>
+                                                </button>
                                             </div>
+                                        ) : (
+                                            // Sin cliente → solo ticket
+                                            <button
+                                                onClick={handlePrintTicket}
+                                                className="w-full flex items-center gap-4 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-emerald-600/20"
+                                            >
+                                                <span className="material-symbols-outlined text-xl">print</span>
+                                                <div className="text-left">
+                                                    <p className="text-sm font-black">Imprimir Ticket</p>
+                                                    <p className="text-[10px] opacity-70 font-bold">Comprobante de venta</p>
+                                                </div>
+                                            </button>
                                         )}
+
+                                        <button
+                                            onClick={handleSkipPrint}
+                                            className="w-full py-3 text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest text-xs transition-colors"
+                                        >
+                                            No imprimir — Continuar
+                                        </button>
                                     </div>
                                 </div>
                             )}
