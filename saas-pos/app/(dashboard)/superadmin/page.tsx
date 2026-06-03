@@ -231,7 +231,7 @@ export default function SuperAdminPage() {
                         { label: "Negocios Activos", value: stats.activeTenants, icon: "check_circle", color: "text-emerald-400" },
                         { label: "Usuarios Totales", value: stats.totalUsers, icon: "group", color: "text-violet-400" },
                         { label: "Ventas Totales", value: stats.totalSales, icon: "receipt_long", color: "text-amber-400" },
-                        { label: "Ingresos Globales", value: fmt(stats.totalRevenue), icon: "payments", color: "text-rose-400" },
+
                     ].map((s) => (
                         <div key={s.label} className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
                             <span className={`material-symbols-outlined text-2xl ${s.color}`}>{s.icon}</span>
