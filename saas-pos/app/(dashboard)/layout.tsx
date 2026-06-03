@@ -91,8 +91,8 @@ export default function DashboardLayout({
                         </Link>
                     )}
 
-                    {/* Admin / Superadmin: menú completo */}
-                    {userRole !== "CAJERO" && (
+                    {/* Admin: menú completo */}
+                    {userRole === "ADMIN" && (
                         <>
                             {/* Inventory with Dropdown */}
                             <div className="space-y-1">
@@ -149,21 +149,22 @@ export default function DashboardLayout({
                                 <span className="material-symbols-outlined">shield_person</span>
                                 <span className="text-sm font-bold uppercase tracking-tighter italic">Accesos</span>
                             </Link>
+                        </>
+                    )}
 
-                            {userRole === "SUPERADMIN" && (
-                                <>
-                                    <div className="pt-2 pb-1 px-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Superadmin</p>
-                                    </div>
-                                    <Link
-                                        href="/superadmin"
-                                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${pathname === '/superadmin' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                                    >
-                                        <span className="material-symbols-outlined">admin_panel_settings</span>
-                                        <span className="text-sm font-bold uppercase tracking-tighter italic">Negocios</span>
-                                    </Link>
-                                </>
-                            )}
+                    {/* Superadmin: solo su panel */}
+                    {userRole === "SUPERADMIN" && (
+                        <>
+                            <div className="pt-2 pb-1 px-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Superadmin</p>
+                            </div>
+                            <Link
+                                href="/superadmin"
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${pathname === '/superadmin' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                            >
+                                <span className="material-symbols-outlined">admin_panel_settings</span>
+                                <span className="text-sm font-bold uppercase tracking-tighter italic">Negocios</span>
+                            </Link>
                         </>
                     )}
                 </nav>
