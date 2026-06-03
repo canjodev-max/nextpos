@@ -74,6 +74,9 @@ namespace SaasPos.Backend.Controllers
                 .Select(rp => rp.Permission.Code)
                 .ToListAsync();
 
+            // Load tenant branding
+            var tenant = await _context.Tenants.FindAsync(user.TenantId);
+
             return Ok(new
             {
                 access_token = tokenHandler.WriteToken(token),
@@ -83,7 +86,14 @@ namespace SaasPos.Backend.Controllers
                     name = user.Name,
                     email = user.Email,
                     role = user.Role.Name,
-                    permissions
+                    permissions,
+                    tenantId = user.TenantId,
+                    tenantName = tenant?.Name,
+                    tenantLogoUrl = tenant?.LogoUrl,
+                    primaryColor = tenant?.PrimaryColor,
+                    secondaryColor = tenant?.SecondaryColor,
+                    darkPrimaryColor = tenant?.DarkPrimaryColor,
+                    darkSecondaryColor = tenant?.DarkSecondaryColor,
                 }
             });
         }

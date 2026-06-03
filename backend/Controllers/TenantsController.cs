@@ -74,8 +74,14 @@ namespace SaasPos.Backend.Controllers
                 Email = request.Email,
                 Phone = request.Phone,
                 Address = request.Address,
+                LogoUrl = request.LogoUrl,
                 Plan = request.Plan ?? "FREE",
                 IsActive = true,
+                // Branding
+                PrimaryColor = request.PrimaryColor ?? "#135bec",
+                SecondaryColor = request.SecondaryColor ?? "#6366f1",
+                DarkPrimaryColor = request.DarkPrimaryColor ?? "#3b82f6",
+                DarkSecondaryColor = request.DarkSecondaryColor ?? "#818cf8",
                 // SIFEN / e-Kuatia
                 Ruc = request.Ruc,
                 RazonSocial = request.RazonSocial,
@@ -148,8 +154,14 @@ namespace SaasPos.Backend.Controllers
             tenant.Email = request.Email;
             tenant.Phone = request.Phone;
             tenant.Address = request.Address;
+            tenant.LogoUrl = request.LogoUrl;
             tenant.Plan = request.Plan;
             tenant.IsActive = request.IsActive;
+            // Branding
+            tenant.PrimaryColor = request.PrimaryColor ?? tenant.PrimaryColor;
+            tenant.SecondaryColor = request.SecondaryColor ?? tenant.SecondaryColor;
+            tenant.DarkPrimaryColor = request.DarkPrimaryColor ?? tenant.DarkPrimaryColor;
+            tenant.DarkSecondaryColor = request.DarkSecondaryColor ?? tenant.DarkSecondaryColor;
             // SIFEN / e-Kuatia
             tenant.Ruc = request.Ruc;
             tenant.RazonSocial = request.RazonSocial;
@@ -196,6 +208,35 @@ namespace SaasPos.Backend.Controllers
             return Ok(new { message = "Negocio desactivado" });
         }
 
+        // POST /api/tenants/{id}/logo — subir logo del negocio
+        [HttpPost("{id}/logo")]
+        public async Task<IActionResult> UploadLogo(Guid id, IFormFile file)
+        {
+            var tenant = await _context.Tenants.FindAsync(id);
+            if (tenant == null) return NotFound();
+
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "Archivo no válido" });
+
+            var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "logos");
+            Directory.CreateDirectory(uploadsDir);
+
+            var ext = Path.GetExtension(file.FileName);
+            var fileName = $"{tenant.Slug}-{Guid.NewGuid()}{ext}";
+            var filePath = Path.Combine(uploadsDir, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            tenant.LogoUrl = $"/uploads/logos/{fileName}";
+            tenant.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { logoUrl = tenant.LogoUrl });
+        }
+
         // GET /api/tenants/stats — resumen global para el dashboard
         [HttpGet("stats")]
         public async Task<IActionResult> GetStats()
@@ -233,7 +274,13 @@ namespace SaasPos.Backend.Controllers
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? Address { get; set; }
+        public string? LogoUrl { get; set; }
         public string? Plan { get; set; }
+        // Branding
+        public string? PrimaryColor { get; set; }
+        public string? SecondaryColor { get; set; }
+        public string? DarkPrimaryColor { get; set; }
+        public string? DarkSecondaryColor { get; set; }
         // Admin inicial del negocio
         public string AdminName { get; set; }
         public string AdminEmail { get; set; }
@@ -273,8 +320,14 @@ namespace SaasPos.Backend.Controllers
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? Address { get; set; }
+        public string? LogoUrl { get; set; }
         public string Plan { get; set; }
         public bool IsActive { get; set; }
+        // Branding
+        public string? PrimaryColor { get; set; }
+        public string? SecondaryColor { get; set; }
+        public string? DarkPrimaryColor { get; set; }
+        public string? DarkSecondaryColor { get; set; }
         // SIFEN / e-Kuatia
         public string? Ruc { get; set; }
         public string? RazonSocial { get; set; }

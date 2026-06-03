@@ -205,6 +205,20 @@ using (var scope = app.Services.CreateScope())
             catch (Exception colEx) { Console.WriteLine($"Column migration skipped: {colEx.Message}"); }
         }
 
+            // Migración: campos Branding / Tema en Tenants
+            var brandingMigrations = new[]
+            {
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""PrimaryColor"" text NULL DEFAULT '#135bec';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""SecondaryColor"" text NULL DEFAULT '#6366f1';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DarkPrimaryColor"" text NULL DEFAULT '#3b82f6';",
+                @"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""DarkSecondaryColor"" text NULL DEFAULT '#818cf8';",
+            };
+            foreach (var sql in brandingMigrations)
+            {
+                try { db.Database.ExecuteSqlRaw(sql); }
+                catch (Exception colEx) { Console.WriteLine($"Branding migration skipped: {colEx.Message}"); }
+            }
+
             // Migración: campos SIFEN / e-Kuatia en Tenants
             var sifenMigrations = new[]
             {
@@ -302,6 +316,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseStaticFiles();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();

@@ -300,6 +300,12 @@ namespace SaasPos.Backend.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        // ── Branding / Personalización visual ────────────────────────────────────
+        public string? PrimaryColor { get; set; } = "#135bec";
+        public string? SecondaryColor { get; set; } = "#6366f1";
+        public string? DarkPrimaryColor { get; set; } = "#3b82f6";
+        public string? DarkSecondaryColor { get; set; } = "#818cf8";
+
         // ── Datos de Facturación Electrónica Paraguay (SIFEN / e-Kuatia) ──────────
         // Datos del contribuyente emisor
         public string? Ruc { get; set; }                        // RUC con dígito verificador (ej: "80069563-1")

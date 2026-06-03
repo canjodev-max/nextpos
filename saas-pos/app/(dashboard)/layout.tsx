@@ -5,6 +5,15 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { NotificationsPanel } from "@/components/NotificationsPanel"
 
+type Branding = {
+    tenantName?: string
+    tenantLogoUrl?: string
+    primaryColor?: string
+    secondaryColor?: string
+    darkPrimaryColor?: string
+    darkSecondaryColor?: string
+}
+
 export default function DashboardLayout({
     children,
 }: {
@@ -20,6 +29,28 @@ export default function DashboardLayout({
         localStorage.removeItem("token")
         router.push("/login")
     }
+
+    const [branding, setBranding] = useState<Branding>(() => {
+        if (typeof window !== "undefined") {
+            const userStr = localStorage.getItem("user")
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr)
+                    return {
+                        tenantName: user.tenantName || user.name?.split(" ")[0] + "'s Shop",
+                        tenantLogoUrl: user.tenantLogoUrl || null,
+                        primaryColor: user.primaryColor || "#135bec",
+                        secondaryColor: user.secondaryColor || "#6366f1",
+                        darkPrimaryColor: user.darkPrimaryColor || "#3b82f6",
+                        darkSecondaryColor: user.darkSecondaryColor || "#818cf8",
+                    }
+                } catch {
+                    return {}
+                }
+            }
+        }
+        return {}
+    })
 
     const [userRole, setUserRole] = useState<string | null>(() => {
         if (typeof window !== "undefined") {
@@ -57,6 +88,23 @@ export default function DashboardLayout({
         }
     }, [])
 
+    // Aplicar colores dinámicos del tenant
+    useEffect(() => {
+        const root = document.documentElement
+        if (branding.primaryColor) {
+            root.style.setProperty("--color-primary", branding.primaryColor)
+        }
+        if (branding.secondaryColor) {
+            root.style.setProperty("--color-secondary", branding.secondaryColor)
+        }
+        if (branding.darkPrimaryColor) {
+            root.style.setProperty("--color-dark-primary", branding.darkPrimaryColor)
+        }
+        if (branding.darkSecondaryColor) {
+            root.style.setProperty("--color-dark-secondary", branding.darkSecondaryColor)
+        }
+    }, [branding])
+
     return (
         <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
             {/* Mobile overlay */}
@@ -70,11 +118,15 @@ export default function DashboardLayout({
             <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                 <div className="p-6">
                     <div className="flex items-center gap-3">
-                        <div className="bg-primary rounded-lg p-2 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-white">storefront</span>
+                        <div className="bg-primary rounded-lg p-2 flex items-center justify-center overflow-hidden size-10">
+                            {branding.tenantLogoUrl ? (
+                                <img src={branding.tenantLogoUrl} alt="Logo" className="size-full object-contain" />
+                            ) : (
+                                <span className="material-symbols-outlined text-white">storefront</span>
+                            )}
                         </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-white text-base font-bold leading-none">SaaS POS</h1>
+                        <div className="flex flex-col min-w-0">
+                            <h1 className="text-white text-base font-bold leading-none truncate">{branding.tenantName || "SaaS POS"}</h1>
                             <p className="text-slate-400 text-xs font-medium">Retail Management</p>
                         </div>
                     </div>

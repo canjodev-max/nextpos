@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/api"
+import BrandingModal from "@/components/BrandingModal"
 
 type Tenant = {
     id: string
@@ -69,6 +70,9 @@ export default function SuperAdminPage() {
     const [editTenant, setEditTenant] = useState<Tenant | null>(null)
     const [showUserModal, setShowUserModal] = useState(false)
     const [editUser, setEditUser] = useState<TenantUser | null>(null)
+    const [showBrandingModal, setShowBrandingModal] = useState(false)
+    const [brandingTenant, setBrandingTenant] = useState<any>(null)
+    const [loadingBranding, setLoadingBranding] = useState(false)
     const [search, setSearch] = useState("")
     const [userSearch, setUserSearch] = useState("")
     const [tenantFilter, setTenantFilter] = useState("")
@@ -127,6 +131,21 @@ export default function SuperAdminPage() {
             } else {
                 toast.error("Error al activar")
             }
+        }
+    }
+
+    const openBranding = async (t: Tenant) => {
+        setLoadingBranding(true)
+        try {
+            const res = await fetch(`${API_URL}/api/tenants/${t.id}`, { headers })
+            if (!res.ok) throw new Error("Error al cargar datos del negocio")
+            const data = await res.json()
+            setBrandingTenant(data)
+            setShowBrandingModal(true)
+        } catch {
+            toast.error("Error al cargar datos de branding")
+        } finally {
+            setLoadingBranding(false)
         }
     }
 
@@ -361,7 +380,11 @@ export default function SuperAdminPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <button onClick={() => openBranding(t)}
+                                                    className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-900/30 rounded-lg transition-colors" title="Personalizar Branding">
+                                                    <span className="material-symbols-outlined text-lg">palette</span>
+                                                </button>
                                                 <button onClick={() => { setEditTenant(t); setShowTenantModal(true) }}
                                                     className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-600 rounded-lg transition-colors" title="Editar">
                                                     <span className="material-symbols-outlined text-lg">edit</span>
@@ -383,6 +406,13 @@ export default function SuperAdminPage() {
                         <TenantModal tenant={editTenant} headers={headers} roles={roles}
                             onClose={() => setShowTenantModal(false)}
                             onSuccess={() => { setShowTenantModal(false); fetchAll() }} />
+                    )}
+                    {showBrandingModal && brandingTenant && (
+                        <BrandingModal
+                            tenant={brandingTenant}
+                            headers={headers}
+                            onClose={() => setShowBrandingModal(false)}
+                            onSuccess={() => { setShowBrandingModal(false); fetchAll() }} />
                     )}
                 </>
             )}

@@ -12,6 +12,9 @@
   --font-display: 'Inter', sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-primary: #135bec;
+  --color-secondary: #6366f1;
+  --color-dark-primary: #3b82f6;
+  --color-dark-secondary: #818cf8;
   --color-background-light: #f6f6f8;
   --color-background-dark: #101622;
 }
