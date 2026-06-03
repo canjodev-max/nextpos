@@ -137,6 +137,138 @@ namespace SaasPos.Backend.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "User deleted" });
         }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  SUPERADMIN — gestión global de usuarios
+        // ═══════════════════════════════════════════════════════════════
+
+        // GET /api/users/all — todos los usuarios de todos los tenants
+        [HttpGet("all")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _context.Users
+                .Include(u => u.Role)
+                .Where(u => u.DeletedAt == null)
+                .OrderByDescending(u => u.CreatedAt)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Name,
+                    u.Email,
+                    u.RoleId,
+                    RoleName = u.Role.Name,
+                    u.IsActive,
+                    u.TenantId,
+                    TenantName = _context.Tenants.Where(t => t.Id == u.TenantId).Select(t => t.Name).FirstOrDefault(),
+                    u.LastLoginAt,
+                    u.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(users);
+        }
+
+        // GET /api/users/by-tenant/{tenantId} — usuarios de un tenant específico
+        [HttpGet("by-tenant/{tenantId}")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> GetUsersByTenant(Guid tenantId)
+        {
+            var users = await _context.Users
+                .Include(u => u.Role)
+                .Where(u => u.TenantId == tenantId && u.DeletedAt == null)
+                .OrderByDescending(u => u.CreatedAt)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Name,
+                    u.Email,
+                    u.RoleId,
+                    RoleName = u.Role.Name,
+                    u.IsActive,
+                    u.LastLoginAt,
+                    u.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(users);
+        }
+
+        // PUT /api/users/super/{id} — SUPERADMIN actualiza cualquier usuario (sin scope tenant)
+        [HttpPut("super/{id}")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> SuperUpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
+            if (user == null) return NotFound("User not found");
+
+            var role = await _context.Roles.FindAsync(request.RoleId);
+            if (role == null) return BadRequest("Role not found");
+
+            var emailConflict = await _context.Users.AnyAsync(u => u.Email == request.Email && u.Id != id && u.DeletedAt == null);
+            if (emailConflict) return Conflict("Email already in use");
+
+            user.Name = request.Name;
+            user.Email = request.Email;
+            user.RoleId = request.RoleId;
+            user.IsActive = request.IsActive;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(request.Password))
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "User updated" });
+        }
+
+        // POST /api/users/super — SUPERADMIN crea usuario en cualquier tenant
+        [HttpPost("super")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> SuperCreateUser([FromBody] SuperCreateUserRequest request)
+        {
+            var tenant = await _context.Tenants.FindAsync(request.TenantId);
+            if (tenant == null) return BadRequest("Tenant not found");
+
+            var role = await _context.Roles.FindAsync(request.RoleId);
+            if (role == null) return BadRequest("Role not found");
+
+            var emailExists = await _context.Users.AnyAsync(u => u.Email == request.Email && u.DeletedAt == null);
+            if (emailExists) return Conflict("Email already in use");
+
+            var user = new User
+            {
+                TenantId = request.TenantId,
+                Name = request.Name,
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                RoleId = request.RoleId,
+                IsActive = request.IsActive,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetAllUsers), new
+            {
+                id = user.Id,
+                name = user.Name,
+                email = user.Email,
+                roleName = role.Name,
+                isActive = user.IsActive
+            });
+        }
+    }
+
+    public class SuperCreateUserRequest
+    {
+        public Guid TenantId { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Password { get; set; }
+        public Guid RoleId { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     // DTOs
