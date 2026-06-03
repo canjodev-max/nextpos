@@ -1,11 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Dialog, DialogContent } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Badge } from '../ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
-import { Loader2 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils'
 
 import { API_URL } from "@/lib/api"
@@ -22,7 +19,29 @@ interface CheckoutModalProps {
     items?: { name: string; quantity: number; price: number; subtotal: number; originalPrice?: number; discountPercentage?: number }[]
 }
 
-type PaymentMethod = 'CASH' | 'CARD' | 'QR' | 'CREDIT' | null
+type PaymentMethod = 'CASH' | 'CARD' | 'QR' | 'CREDIT'
+
+type PaymentEntry = {
+    method: PaymentMethod
+    amount: number
+    dueDate?: string
+}
+
+const METHODS: { method: PaymentMethod; icon: string; label: string; subtitle: string; key: string }[] = [
+    { method: 'CASH', icon: 'payments', label: 'Efectivo', subtitle: 'Billetes y Monedas', key: '1' },
+    { method: 'CARD', icon: 'credit_card', label: 'Tarjeta (POS)', subtitle: 'Débito / Crédito', key: '2' },
+    { method: 'QR', icon: 'qr_code_2', label: 'QR Pagos', subtitle: 'Billeteras Digitales', key: '3' },
+    { method: 'CREDIT', icon: 'description', label: 'Crédito', subtitle: 'Cuenta Corriente', key: '4' },
+]
+
+const METHOD_COLORS: Record<PaymentMethod, { bg: string; border: string; shadow: string; text: string; hover: string; disabled: string; activeBg: string }> = {
+    CASH: { bg: 'bg-emerald-500', border: 'border-emerald-400', shadow: 'shadow-emerald-500/20', text: 'text-emerald-500', hover: 'hover:border-emerald-500/50', disabled: 'opacity-40 grayscale cursor-not-allowed', activeBg: 'bg-emerald-500' },
+    CARD: { bg: 'bg-primary', border: 'border-primary', shadow: 'shadow-primary/20', text: 'text-primary', hover: 'hover:border-primary/50', disabled: '', activeBg: 'bg-primary' },
+    QR: { bg: 'bg-purple-600', border: 'border-purple-500', shadow: 'shadow-purple-600/20', text: 'text-purple-500', hover: 'hover:border-purple-500/50', disabled: '', activeBg: 'bg-purple-600' },
+    CREDIT: { bg: 'bg-orange-600', border: 'border-orange-500', shadow: 'shadow-orange-600/20', text: 'text-orange-500', hover: 'hover:border-orange-500/50', disabled: 'opacity-40 grayscale cursor-not-allowed', activeBg: 'bg-orange-600' },
+}
+
+const QUICK_AMOUNTS = [50000, 100000, 200000, 500000]
 
 export default function CheckoutModal({
     isOpen,
@@ -35,7 +54,8 @@ export default function CheckoutModal({
     registerId,
     items = []
 }: CheckoutModalProps) {
-    const [method, setMethod] = useState<PaymentMethod>(null)
+    const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([])
+    const [cashReceived, setCashReceived] = useState<string>('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
@@ -43,121 +63,113 @@ export default function CheckoutModal({
     const [invoiceInfo, setInvoiceInfo] = useState<{ status: string; number?: string; url?: string } | null>(null)
     const [saleChange, setSaleChange] = useState(0)
 
-    // Cash State
-    const [cashReceived, setCashReceived] = useState<string>('')
-    const [change, setChange] = useState(0)
-
-    // Credit State
-    const [dueDate, setDueDate] = useState<string>('')
-
     const cashInputRef = useRef<HTMLInputElement>(null)
+
+    const allocated = paymentEntries.reduce((sum, e) => sum + e.amount, 0)
+    const remaining = total - allocated
+    const cashEntry = paymentEntries.find(e => e.method === 'CASH')
+    const cashAmount = cashEntry?.amount ?? 0
+    const cashReceivedNum = parseFloat(cashReceived || '0')
+    const change = cashEntry ? Math.max(0, cashReceivedNum - cashAmount) : 0
+    const cashShort = cashEntry ? Math.max(0, cashAmount - cashReceivedNum) : 0
 
     useEffect(() => {
         if (isOpen) {
-            setMethod(null)
+            setPaymentEntries([])
+            setCashReceived('')
             setLoading(false)
             setError(null)
             setSuccess(false)
             setShowPrintPrompt(false)
             setInvoiceInfo(null)
-            setCashReceived('')
-            setChange(0)
             setSaleChange(0)
-            setDueDate('')
         }
     }, [isOpen, total])
 
     useEffect(() => {
-        if (method === 'CASH' && cashInputRef.current) {
+        if (paymentEntries.some(e => e.method === 'CASH') && cashInputRef.current) {
             setTimeout(() => cashInputRef.current?.focus(), 100)
         }
-    }, [method])
+    }, [paymentEntries])
 
-    const handleCashChange = (val: string) => {
-        setCashReceived(val)
-        const received = parseFloat(val)
-        if (!isNaN(received)) {
-            setChange(received - total)
-        } else {
-            setChange(0)
+    const isDisabled = (method: PaymentMethod) => {
+        if (method === 'CREDIT' && !customerId) return true
+        return false
+    }
+
+    const toggleMethod = (method: PaymentMethod) => {
+        if (isDisabled(method)) return
+        const exists = paymentEntries.find(e => e.method === method)
+        if (exists) {
+            setPaymentEntries(prev => prev.filter(e => e.method !== method))
+            if (method === 'CASH') setCashReceived('')
+            return
         }
+        if (remaining <= 0) return
+        const entry: PaymentEntry = { method, amount: remaining }
+        if (method === 'CREDIT') {
+            const d = new Date()
+            d.setDate(d.getDate() + 7)
+            entry.dueDate = d.toISOString().slice(0, 10)
+        }
+        if (method === 'CASH') {
+            setCashReceived(String(remaining))
+        }
+        setPaymentEntries(prev => [...prev, entry])
+    }
+
+    const updateAmount = (method: PaymentMethod, amount: number) => {
+        const clamped = Math.max(0, Math.min(amount, total))
+        const otherTotal = paymentEntries.filter(e => e.method !== method).reduce((s, e) => s + e.amount, 0)
+        const maxAllowed = total - otherTotal
+        setPaymentEntries(prev => prev.map(e =>
+            e.method === method ? { ...e, amount: Math.min(clamped, maxAllowed) } : e
+        ))
+    }
+
+    const updateDueDate = (method: PaymentMethod, dueDate: string) => {
+        setPaymentEntries(prev => prev.map(e =>
+            e.method === method ? { ...e, dueDate } : e
+        ))
     }
 
     const handleConfirmPayment = async () => {
-        if (!saleId) {
-            setError("No hay venta activa")
-            return
-        }
+        if (!saleId) { setError("No hay venta activa"); return }
+        if (remaining !== 0) { setError("Los montos no cubren el total"); return }
+        if (cashEntry && cashReceivedNum < cashAmount) { setError("El efectivo recibido es insuficiente"); return }
+        if (paymentEntries.some(e => e.method === 'CREDIT' && !e.dueDate)) { setError("Selecciona fecha de vencimiento para el crédito"); return }
 
         setLoading(true)
         setError(null)
 
         try {
-            const payments = []
+            const payments = paymentEntries.map(entry => {
+                const base: any = { method: entry.method, amount: entry.amount }
+                if (entry.method === 'CREDIT') base.dueDate = new Date(entry.dueDate!).toISOString()
+                return base
+            })
 
-            if (method === 'CASH') {
-                const amount = parseFloat(cashReceived)
-                if (isNaN(amount) || amount < total) {
-                    throw new Error("Monto insuficiente")
-                }
-                payments.push({
-                    method: 'CASH',
-                    amount: total // Pay exact total, change is handled physically
-                })
-            } else if (method === 'CARD') {
-                // Simulate Bancard
+            if (paymentEntries.some(e => e.method === 'CARD')) {
                 await new Promise(resolve => setTimeout(resolve, 2000))
-                payments.push({
-                    method: 'CARD',
-                    amount: total
-                })
-            } else if (method === 'QR') {
-                payments.push({
-                    method: 'QR',
-                    amount: total
-                })
-            } else if (method === 'CREDIT') {
-                if (!customerId) throw new Error("Requiere Cliente")
-                if (!dueDate) throw new Error("Requiere Fecha de Vencimiento")
-
-                payments.push({
-                    method: 'CREDIT',
-                    amount: total,
-                    dueDate: new Date(dueDate).toISOString()
-                })
             }
 
             const token = localStorage.getItem('token')
             const res = await fetch(`${API_URL}/api/sales/${saleId}/pay`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    payments,
-                    cashRegisterId: registerId
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ payments, cashRegisterId: registerId })
             })
 
             const data = await res.json()
-            if (!res.ok) {
-                throw new Error(data?.message || JSON.stringify(data))
-            }
+            if (!res.ok) throw new Error(data?.message || JSON.stringify(data))
 
             if (data.invoice) {
-                setInvoiceInfo({
-                    status: data.invoice.status,
-                    number: data.invoice.invoiceNumber,
-                    url: data.invoice.invoiceUrl
-                })
+                setInvoiceInfo({ status: data.invoice.status, number: data.invoice.invoiceNumber, url: data.invoice.invoiceUrl })
             }
 
-            const finalChange = method === 'CASH' ? parseFloat(cashReceived) - total : 0
-            setSaleChange(finalChange > 0 ? finalChange : 0)
+            setSaleChange(change)
             setSuccess(true)
             setShowPrintPrompt(true)
-
         } catch (err: any) {
             setError(err.message)
         } finally {
@@ -189,6 +201,10 @@ export default function CheckoutModal({
                     <td class="item-total">₲ ${item.subtotal.toLocaleString('es-PY')}</td>
                 </tr>`
         }).join('')
+
+        const methodsHtml = paymentEntries.map(e =>
+            `<tr><td>${e.method}</td><td style="text-align:right;">₲ ${e.amount.toLocaleString('es-PY')}</td></tr>`
+        ).join('')
 
         const html = `<!DOCTYPE html>
 <html>
@@ -231,6 +247,8 @@ export default function CheckoutModal({
     ${itemsHtml}
   </table>
   <hr>
+  <table>${methodsHtml}</table>
+  <hr>
   <table>
     <tr>
       <td colspan="2" class="total-label">TOTAL</td>
@@ -243,7 +261,6 @@ export default function CheckoutModal({
 </body>
 </html>`
 
-        // Usar iframe oculto para evitar bloqueo de popups
         const iframe = document.createElement('iframe')
         iframe.style.position = 'fixed'
         iframe.style.top = '-9999px'
@@ -268,14 +285,12 @@ export default function CheckoutModal({
                 onClose()
             }, 500)
         }
-    }, [items, customerName, total, saleChange, onSuccess, onClose])
+    }, [items, customerName, total, saleChange, paymentEntries, onSuccess, onClose])
 
     const handlePrintInvoice = () => {
-        // Factura e-Kuatia — abre el KuDE si está disponible
         if (invoiceInfo?.url) {
             window.open(invoiceInfo.url, '_blank')
         } else {
-            // Si la factura está pendiente, mostrar info disponible
             alert(`Factura ${invoiceInfo?.number ?? 'pendiente'} — Estado: ${invoiceInfo?.status ?? 'procesando'}`)
         }
         onSuccess()
@@ -289,25 +304,35 @@ export default function CheckoutModal({
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
-            if (method) setMethod(null)
+            if (paymentEntries.length > 0) { setPaymentEntries([]); setCashReceived('') }
             else onClose()
         }
-        if (e.key === 'Enter' && method === 'CASH') {
-            handleConfirmPayment()
+        if (e.key === 'Enter') {
+            if (paymentEntries.length > 0 && remaining === 0 && !cashShort) {
+                handleConfirmPayment()
+            }
+        }
+        if (!loading && !success) {
+            if (e.key === '1') toggleMethod('CASH')
+            if (e.key === '2') toggleMethod('CARD')
+            if (e.key === '3') toggleMethod('QR')
+            if (e.key === '4') toggleMethod('CREDIT')
         }
     }
+
+    const entryFor = (method: PaymentMethod) => paymentEntries.find(e => e.method === method)
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-full sm:max-w-2xl lg:max-w-5xl h-[95vh] sm:h-[90vh] p-0 border-none bg-background-light dark:bg-background-dark font-display overflow-hidden rounded-none sm:rounded-3xl">
-                <div className="flex flex-col h-full bg-slate-950 text-white">
-                    {/* High-Impact Header */}
-                    <div className="px-10 py-10 bg-gradient-to-br from-slate-900 to-slate-950 border-b border-slate-800 flex justify-between items-end relative overflow-hidden">
+                <div className="flex flex-col h-full bg-slate-950 text-white" onKeyDown={handleKeyDown}>
+                    {/* Header */}
+                    <div className="px-10 py-8 bg-gradient-to-br from-slate-900 to-slate-950 border-b border-slate-800 flex justify-between items-end relative overflow-hidden shrink-0">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
                             <span className="material-symbols-outlined text-[120px] rotate-12">payments</span>
                         </div>
-                        
-                        <div className="flex flex-col gap-4 relative z-10">
+
+                        <div className="flex flex-col gap-3 relative z-10">
                             <div className="flex items-center gap-3">
                                 <div className="size-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
                                     <span className="material-symbols-outlined text-2xl font-bold">point_of_sale</span>
@@ -328,89 +353,54 @@ export default function CheckoutModal({
                         </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col sm:flex-row overflow-hidden bg-white dark:bg-slate-900">
+                    <div className="flex-1 flex flex-col sm:flex-row overflow-hidden bg-white dark:bg-slate-900 min-h-0">
                         {/* Sidebar: Payment Methods */}
-                        <div className="w-full sm:w-64 lg:w-80 bg-slate-50 dark:bg-slate-950/50 border-b sm:border-b-0 sm:border-r border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex flex-row sm:flex-col gap-3 sm:gap-4 overflow-x-auto sm:overflow-x-visible">
-                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 px-2">Método de Pago</h3>
-                            
-                            <button
-                                onClick={() => setMethod('CASH')}
-                                className={`flex flex-col gap-3 p-6 rounded-2xl transition-all duration-300 text-left border-2 group ${
-                                    method === 'CASH' 
-                                    ? 'bg-emerald-500 border-emerald-400 shadow-xl shadow-emerald-500/20 text-white scale-[1.02]' 
-                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-500/50'
-                                }`}
-                            >
-                                <span className={`material-symbols-outlined text-3xl ${method === 'CASH' ? 'text-white' : 'text-emerald-500'}`}>payments</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black uppercase tracking-widest">Efectivo</span>
-                                    <span className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">Billetes y Monedas</span>
-                                </div>
-                            </button>
+                        <div className="w-full sm:w-56 lg:w-72 bg-slate-50 dark:bg-slate-950/50 border-b sm:border-b-0 sm:border-r border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-row sm:flex-col gap-2 sm:gap-3 overflow-x-auto sm:overflow-x-visible shrink-0">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-2 shrink-0">
+                                <span className="sm:hidden">Presiona 1-4 · </span>Método de Pago
+                            </h3>
 
-                            <button
-                                onClick={() => setMethod('CARD')}
-                                className={`flex flex-col gap-3 p-6 rounded-2xl transition-all duration-300 text-left border-2 group ${
-                                    method === 'CARD' 
-                                    ? 'bg-primary border-primary shadow-xl shadow-primary/20 text-white scale-[1.02]' 
-                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-primary/50'
-                                }`}
-                            >
-                                <span className={`material-symbols-outlined text-3xl ${method === 'CARD' ? 'text-white' : 'text-primary'}`}>credit_card</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black uppercase tracking-widest">Tarjeta (POS)</span>
-                                    <span className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">Débito / Crédito</span>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setMethod('QR')}
-                                className={`flex flex-col gap-3 p-6 rounded-2xl transition-all duration-300 text-left border-2 group ${
-                                    method === 'QR' 
-                                    ? 'bg-purple-600 border-purple-500 shadow-xl shadow-purple-600/20 text-white scale-[1.02]' 
-                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-purple-500/50'
-                                }`}
-                            >
-                                <span className={`material-symbols-outlined text-3xl ${method === 'QR' ? 'text-white' : 'text-purple-500'}`}>qr_code_2</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black uppercase tracking-widest">QR Pagos</span>
-                                    <span className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">Billeteras Digitales</span>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setMethod('CREDIT')}
-                                disabled={!customerId}
-                                className={`flex flex-col gap-3 p-6 rounded-2xl transition-all duration-300 text-left border-2 group ${
-                                    method === 'CREDIT' 
-                                    ? 'bg-orange-600 border-orange-500 shadow-xl shadow-orange-600/20 text-white scale-[1.02]' 
-                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-orange-500/50'
-                                } ${!customerId ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
-                            >
-                                <span className={`material-symbols-outlined text-3xl ${method === 'CREDIT' ? 'text-white' : 'text-orange-500'}`}>description</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black uppercase tracking-widest">Crédito</span>
-                                    <span className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">Cuenta Corriente</span>
-                                </div>
-                            </button>
+                            {METHODS.map(({ method, icon, label, subtitle, key }) => {
+                                const entry = entryFor(method)
+                                const c = METHOD_COLORS[method]
+                                const selected = !!entry
+                                const disabled = isDisabled(method)
+                                return (
+                                    <button key={method} onClick={() => toggleMethod(method)} disabled={disabled}
+                                        className={`flex flex-col gap-2 p-4 lg:p-5 rounded-2xl transition-all duration-200 text-left border-2 shrink-0 min-w-[130px] sm:min-w-0 ${selected ? `${c.bg} ${c.border} ${c.shadow} text-white scale-[1.02]` : `bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 ${c.hover}`} ${disabled ? c.disabled : ''}`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className={`material-symbols-outlined text-2xl ${selected ? 'text-white' : c.text}`}>{icon}</span>
+                                            {selected && <span className="material-symbols-outlined text-sm text-white/80">check_circle</span>}
+                                        </div>
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-xs font-black uppercase tracking-widest">{label}</span>
+                                            <span className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">{subtitle}</span>
+                                            {selected && entry && (
+                                                <span className="text-xs font-black mt-1">{formatMoney(entry.amount)}</span>
+                                            )}
+                                        </div>
+                                    </button>
+                                )
+                            })}
                         </div>
 
-                        {/* Payment Area */}
-                        <div className="flex-1 p-12 flex flex-col items-center justify-center relative bg-white dark:bg-slate-900">
+                        {/* Main Payment Area */}
+                        <div className="flex-1 p-6 lg:p-8 flex flex-col relative bg-white dark:bg-slate-900 overflow-y-auto">
+                            {/* Loading */}
                             {loading && (
-                                <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm animate-in fade-in duration-500">
+                                <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
                                     <div className="relative">
-                                        <div className="size-32 rounded-full border-4 border-slate-100 dark:border-slate-800 border-t-primary animate-spin"></div>
+                                        <div className="size-28 rounded-full border-4 border-slate-100 dark:border-slate-800 border-t-primary animate-spin"></div>
                                         <span className="material-symbols-outlined absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl text-primary animate-pulse">lock</span>
                                     </div>
-                                    <h3 className="mt-8 text-2xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white">Procesando Pago...</h3>
+                                    <h3 className="mt-6 text-2xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white">Procesando Pago...</h3>
                                     <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2 px-12 text-center">Espere un momento mientras confirmamos la transacción</p>
                                 </div>
                             )}
 
+                            {/* Success */}
                             {success && showPrintPrompt && (
                                 <div className="absolute inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center animate-in zoom-in duration-300 p-8">
-                                    {/* Vuelto */}
                                     {saleChange > 0 && (
                                         <div className="mb-6 px-8 py-3 bg-emerald-500/20 border border-emerald-500/40 rounded-full">
                                             <span className="text-emerald-400 font-black text-sm uppercase tracking-widest">
@@ -418,8 +408,6 @@ export default function CheckoutModal({
                                             </span>
                                         </div>
                                     )}
-
-                                    {/* Check animado */}
                                     <div className="size-24 rounded-full bg-emerald-500 flex items-center justify-center mb-6 shadow-2xl shadow-emerald-500/30">
                                         <span className="material-symbols-outlined text-5xl text-white">check</span>
                                     </div>
@@ -428,29 +416,22 @@ export default function CheckoutModal({
                                         {customerId ? 'Factura electrónica generada' : 'Venta registrada'}
                                     </p>
 
-                                    {/* Pregunta de impresión */}
                                     <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4">
                                         <p className="text-center text-sm font-black uppercase tracking-widest text-slate-300">
                                             ¿Desea imprimir el comprobante?
                                         </p>
-
                                         {customerId ? (
-                                            // Con cliente → ofrecer factura e-Kuatia
                                             <div className="space-y-3">
-                                                <button
-                                                    onClick={handlePrintInvoice}
-                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-primary/20"
-                                                >
+                                                <button onClick={handlePrintInvoice}
+                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-primary/20">
                                                     <span className="material-symbols-outlined text-xl">receipt_long</span>
                                                     <div className="text-left">
                                                         <p className="text-sm font-black">Imprimir Factura</p>
                                                         <p className="text-[10px] opacity-70 font-bold">e-Kuatia / SIFEN</p>
                                                     </div>
                                                 </button>
-                                                <button
-                                                    onClick={handlePrintTicket}
-                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
-                                                >
+                                                <button onClick={handlePrintTicket}
+                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95">
                                                     <span className="material-symbols-outlined text-xl">receipt</span>
                                                     <div className="text-left">
                                                         <p className="text-sm font-black">Solo Ticket</p>
@@ -459,11 +440,8 @@ export default function CheckoutModal({
                                                 </button>
                                             </div>
                                         ) : (
-                                            // Sin cliente → solo ticket
-                                            <button
-                                                onClick={handlePrintTicket}
-                                                className="w-full flex items-center gap-4 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-emerald-600/20"
-                                            >
+                                            <button onClick={handlePrintTicket}
+                                                className="w-full flex items-center gap-4 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-emerald-600/20">
                                                 <span className="material-symbols-outlined text-xl">print</span>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black">Imprimir Ticket</p>
@@ -471,139 +449,174 @@ export default function CheckoutModal({
                                                 </div>
                                             </button>
                                         )}
-
-                                        <button
-                                            onClick={handleSkipPrint}
-                                            className="w-full py-3 text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest text-xs transition-colors"
-                                        >
+                                        <button onClick={handleSkipPrint}
+                                            className="w-full py-3 text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest text-xs transition-colors">
                                             No imprimir — Continuar
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            {!method && !success && (
-                                <div className="flex flex-col items-center text-slate-200 dark:text-slate-800">
-                                    <span className="material-symbols-outlined text-[160px]">point_of_sale</span>
-                                    <p className="text-xl font-black italic uppercase tracking-tighter text-slate-300 dark:text-slate-700 -mt-8">Seleccione Método</p>
+                            {/* No method selected → Summary + prompt */}
+                            {paymentEntries.length === 0 && !success && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-6 text-slate-200 dark:text-slate-800">
+                                    {/* Items Summary */}
+                                    {items.length > 0 && (
+                                        <div className="w-full max-w-lg bg-slate-50 dark:bg-slate-950/30 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Resumen de Venta</h4>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                {items.map((item, i) => (
+                                                    <div key={i} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className="text-xs font-black text-slate-400 shrink-0">{item.quantity}x</span>
+                                                            <span className="text-slate-700 dark:text-slate-300 truncate font-semibold">{item.name}</span>
+                                                        </div>
+                                                        <span className="text-slate-900 dark:text-white font-black shrink-0 ml-4">{formatMoney(item.subtotal)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                                                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total</span>
+                                                <span className="text-lg font-black italic text-slate-900 dark:text-white">{formatMoney(total)}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-col items-center">
+                                        <span className="material-symbols-outlined text-[120px]">point_of_sale</span>
+                                        <p className="text-xl font-black italic uppercase tracking-tighter text-slate-300 dark:text-slate-700 -mt-6">
+                                            Seleccione Método
+                                        </p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-600 mt-2 font-bold uppercase tracking-widest">
+                                            Presione <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs">1</kbd> Efectivo
+                                            · <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs">2</kbd> Tarjeta
+                                            · <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs">3</kbd> QR
+                                            · <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs">4</kbd> Crédito
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
-                            {method === 'CASH' && (
-                                <div className="w-full max-w-lg space-y-10 animate-in fade-in slide-in-from-right-10 duration-500">
-                                    <div className="space-y-4">
-                                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-2">Importe Recibido</Label>
-                                        <div className="relative group">
-                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-4xl font-black text-emerald-500 group-focus-within:scale-125 transition-transform duration-300">₲</span>
-                                            <input
-                                                ref={cashInputRef}
-                                                type="number"
-                                                className="w-full h-32 pl-16 pr-8 bg-slate-50 dark:bg-slate-950/50 border-4 border-slate-100 dark:border-slate-800 rounded-[32px] text-7xl font-black italic tracking-tighter text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-0 transition-all text-right"
-                                                placeholder="0"
-                                                value={cashReceived}
-                                                onChange={(e) => handleCashChange(e.target.value)}
-                                            />
+                            {/* Methods selected → payment forms */}
+                            {paymentEntries.length > 0 && !success && (
+                                <div className="flex-1 flex flex-col gap-6 animate-in fade-in duration-300">
+                                    {/* Summary bar */}
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Medios de Pago</h3>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asignado</span>
+                                            <span className={`text-xl font-black italic ${remaining === 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                                {formatMoney(allocated)} / {formatMoney(total)}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="p-6 bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 items-center justify-center">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">A Cobrar</span>
-                                            <span className="text-2xl font-black italic tracking-tight text-slate-900 dark:text-white">{formatMoney(total)}</span>
-                                        </div>
-                                        <div className={`p-6 rounded-2xl border-2 flex flex-col gap-1 items-center justify-center transition-all duration-500 ${change >= 0 ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600' : 'bg-rose-500/10 border-rose-500 text-rose-600'}`}>
-                                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{change >= 0 ? 'Vuelto' : 'Faltante'}</span>
-                                            <span className="text-2xl font-black italic tracking-tight">{formatMoney(Math.abs(change))}</span>
-                                        </div>
+                                    {/* Progress bar */}
+                                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${remaining === 0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                            style={{ width: `${total > 0 ? (allocated / total) * 100 : 0}%` }} />
                                     </div>
 
-                                    <Button
-                                        onClick={handleConfirmPayment}
-                                        disabled={change < 0 || !cashReceived}
-                                        className="w-full h-20 bg-emerald-500 hover:bg-emerald-600 text-white rounded-3xl font-black uppercase italic tracking-widest text-lg shadow-2xl shadow-emerald-500/30 transform active:scale-95 transition-all flex items-center justify-center gap-4"
-                                    >
-                                        <span className="material-symbols-outlined text-3xl font-black">check</span>
-                                        Confirmar Cobro
-                                    </Button>
+                                    {/* Payment entries */}
+                                    <div className="flex-1 space-y-4 overflow-y-auto">
+                                        {paymentEntries.map((entry) => {
+                                            const c = METHOD_COLORS[entry.method]
+                                            const m = METHODS.find(m => m.method === entry.method)
+                                            return (
+                                                <div key={entry.method} className="bg-slate-50 dark:bg-slate-950/30 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className={`material-symbols-outlined text-xl ${c.text}`}>{m?.icon}</span>
+                                                            <span className="text-sm font-black uppercase tracking-wider">{m?.label}</span>
+                                                        </div>
+                                                        <button onClick={() => toggleMethod(entry.method)}
+                                                            className="text-slate-400 hover:text-rose-400 transition-colors p-1">
+                                                            <span className="material-symbols-outlined text-lg">close</span>
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monto</Label>
+                                                            <input type="number"
+                                                                value={entry.amount}
+                                                                onChange={(e) => updateAmount(entry.method, parseFloat(e.target.value) || 0)}
+                                                                className="mt-1 w-full h-12 px-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-lg font-black text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-0 transition-all" />
+                                                        </div>
+
+                                                        {entry.method === 'CREDIT' && (
+                                                            <div>
+                                                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimiento</Label>
+                                                                <input type="date"
+                                                                    value={entry.dueDate ?? ''}
+                                                                    onChange={(e) => updateDueDate(entry.method, e.target.value)}
+                                                                    className="mt-1 w-full h-12 px-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-lg font-black text-slate-900 dark:text-white focus:border-orange-500 focus:ring-0 transition-all" />
+                                                            </div>
+                                                        )}
+
+                                                        {entry.method === 'CASH' && (
+                                                            <div>
+                                                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recibido</Label>
+                                                                <input ref={cashInputRef} type="number"
+                                                                    value={cashReceived}
+                                                                    onChange={(e) => setCashReceived(e.target.value)}
+                                                                    className="mt-1 w-full h-12 px-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-lg font-black text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-0 transition-all" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Quick amounts for cash */}
+                                                    {entry.method === 'CASH' && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {QUICK_AMOUNTS.map(amt => (
+                                                                <button key={amt} type="button" onClick={() => setCashReceived(String(amt + (cashAmount > 0 ? 0 : 0)))}
+                                                                    className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg text-xs font-black transition-colors">
+                                                                    {formatMoney(amt)}
+                                                                </button>
+                                                            ))}
+                                                            <button type="button" onClick={() => setCashReceived(String(entry.amount))}
+                                                                className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-black transition-colors">
+                                                                Exacto
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Change display for cash */}
+                                                    {entry.method === 'CASH' && cashReceivedNum > 0 && (
+                                                        <div className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 ${cashReceivedNum >= cashAmount ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' : 'bg-rose-500/10 border-rose-500/30 text-rose-600'}`}>
+                                                            <span className="text-xs font-black uppercase tracking-widest">
+                                                                {cashReceivedNum >= cashAmount ? 'Vuelto' : 'Faltante'}
+                                                            </span>
+                                                            <span className="text-lg font-black italic">{formatMoney(Math.abs(cashReceivedNum - cashAmount))}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Card / QR - just info */}
+                                                    {(entry.method === 'CARD' || entry.method === 'QR') && (
+                                                        <div className="px-4 py-3 bg-slate-100 dark:bg-slate-800/50 rounded-xl flex items-center gap-3">
+                                                            <span className="material-symbols-outlined text-slate-400">info</span>
+                                                            <span className="text-xs text-slate-500 font-bold">Se cobrarán <span className="text-slate-900 dark:text-white font-black">{formatMoney(entry.amount)}</span> por este medio</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {/* Confirm button */}
+                                    <div className="shrink-0">
+                                        <Button onClick={handleConfirmPayment}
+                                            disabled={remaining !== 0 || (cashEntry ? cashReceivedNum < cashAmount : false) || paymentEntries.some(e => e.method === 'CREDIT' && !e.dueDate)}
+                                            className="w-full h-16 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black uppercase italic tracking-widest text-lg shadow-2xl shadow-emerald-500/30 transform active:scale-95 transition-all flex items-center justify-center gap-4">
+                                            <span className="material-symbols-outlined text-3xl font-black">check</span>
+                                            {remaining === 0 ? 'Confirmar Cobro' : `Falta ${formatMoney(remaining)}`}
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
 
-                            {method === 'CARD' && (
-                                <div className="w-full max-w-md text-center animate-in zoom-in duration-500">
-                                    <div className="size-48 rounded-full bg-primary/5 flex items-center justify-center text-primary mx-auto mb-8 border-2 border-primary/20 animate-pulse">
-                                        <span className="material-symbols-outlined text-[80px]">tap_and_play</span>
-                                    </div>
-                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white">Conectando POS</h3>
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Monto a Transmitir: <span className="text-primary font-black">{formatMoney(total)}</span></p>
-                                    <Button 
-                                        onClick={handleConfirmPayment}
-                                        className="w-full h-16 mt-12 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase tracking-widest"
-                                    >
-                                        Iniciar Cobro POS
-                                    </Button>
-                                </div>
-                            )}
-
-                            {method === 'QR' && (
-                                <div className="w-full max-w-md text-center animate-in zoom-in duration-500">
-                                    <div className="bg-white p-6 rounded-3xl border-8 border-slate-950 inline-block shadow-2xl relative group overflow-hidden">
-                                        <div className="p-4 bg-white">
-                                            <span className="material-symbols-outlined text-[200px] text-slate-900">qr_code_2</span>
-                                        </div>
-                                        <div className="absolute inset-0 bg-primary/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-                                    </div>
-                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white mt-10">Escanea y Paga</h3>
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Importe: <span className="text-purple-500 font-black">{formatMoney(total)}</span></p>
-                                    <Button 
-                                        onClick={handleConfirmPayment}
-                                        className="w-full h-16 mt-12 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-purple-600/30"
-                                    >
-                                        Confirmar Recepción
-                                    </Button>
-                                </div>
-                            )}
-
-                            {method === 'CREDIT' && (
-                                <div className="w-full max-w-lg space-y-10 animate-in fade-in slide-in-from-right-10 duration-500">
-                                    <div className="p-8 bg-orange-500/10 rounded-[32px] border-2 border-orange-500/20 flex items-center gap-6">
-                                        <div className="size-20 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
-                                            <span className="material-symbols-outlined text-4xl">warning</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-orange-600">Venta al Crédito</h3>
-                                            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">El cliente pagará en una fecha posterior</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2">Fecha de Vencimiento de Factura</Label>
-                                            <input
-                                                type="date"
-                                                className="w-full h-16 px-6 bg-slate-50 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-xl font-black italic tracking-tight text-slate-900 dark:text-white focus:border-orange-50 focus:ring-primary transition-all"
-                                                value={dueDate}
-                                                onChange={(e) => setDueDate(e.target.value)}
-                                            />
-                                        </div>
-                                        
-                                        <div className="p-6 bg-slate-50 dark:bg-slate-950/50 rounded-2xl flex justify-between items-center px-8 border border-slate-100 dark:border-slate-800">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monto a Deudar</span>
-                                            <span className="text-2xl font-black italic text-slate-900 dark:text-white uppercase tracking-tighter">{formatMoney(total)}</span>
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        onClick={handleConfirmPayment}
-                                        disabled={!dueDate}
-                                        className="w-full h-20 bg-orange-600 hover:bg-orange-700 text-white rounded-3xl font-black uppercase italic tracking-widest text-lg shadow-2xl shadow-orange-600/30 transform active:scale-95 transition-all"
-                                    >
-                                        Confirmar Crédito
-                                    </Button>
-                                </div>
-                            )}
-
+                            {/* Error */}
                             {error && (
-                                <Alert variant="destructive" className="mt-8 absolute bottom-8 max-w-md bg-rose-500 border-none text-white rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5">
+                                <Alert variant="destructive" className="mt-4 bg-rose-500 border-none text-white rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5 shrink-0">
                                     <div className="flex gap-4 items-center">
                                         <span className="material-symbols-outlined font-black">error</span>
                                         <div className="flex flex-col">
