@@ -96,6 +96,7 @@ export default function AdminCashPage() {
     const [loading, setLoading] = useState(true)
     const [selectedSession, setSelectedSession] = useState<any>(null)
     const [detailOpen, setDetailOpen] = useState(false)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const token = () => localStorage.getItem("token")
 
@@ -123,6 +124,30 @@ export default function AdminCashPage() {
         fetchAnalytics()
     }, [])
 
+    const filteredHistory = history.filter(reg => {
+        if (!searchQuery) return true
+        const q = searchQuery.toLowerCase()
+        return reg.openedByUser?.name?.toLowerCase().includes(q) ||
+               reg.id.toLowerCase().includes(q) ||
+               formatMoney(reg.expectedAmountCash).includes(searchQuery)
+    })
+
+    const exportAuditCSV = () => {
+        const headers = ["Cajero", "Apertura", "Cierre", "Esperado", "Contado", "Diferencia", "Estado"]
+        const rows = filteredHistory.map(reg => [
+            reg.openedByUser?.name || 'Sistema',
+            new Date(reg.openedAt).toLocaleString('es-PY'),
+            reg.closedAt ? new Date(reg.closedAt).toLocaleString('es-PY') : 'Abierto',
+            reg.expectedAmountCash, reg.closingAmountCash, reg.differenceCash, reg.status
+        ].join(','))
+        const csv = [headers.join(','), ...rows].join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `auditoria-caja-${new Date().toISOString().slice(0,10)}.csv`
+        a.click(); URL.revokeObjectURL(url)
+    }
+
     const totalWeekSales = analytics?.weekSales.reduce((a, b) => a + b, 0) ?? 0
     const netGlobal = analytics?.monthlyTotals.reduce((a, b) => a + b.total, 0) ?? 0
     const minMonth = analytics?.monthlyTotals.length ? Math.min(...analytics.monthlyTotals.map(m => m.total)) : 0
@@ -139,7 +164,7 @@ export default function AdminCashPage() {
                     <button onClick={() => { fetchHistory(); fetchAnalytics() }} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 transition-colors">
                         <span className="material-symbols-outlined text-[20px]">refresh</span>
                     </button>
-                    <button className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all">
+                    <button onClick={exportAuditCSV} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all">
                         <span className="material-symbols-outlined text-sm">download</span> Exportar
                     </button>
                 </div>
@@ -223,7 +248,7 @@ export default function AdminCashPage() {
                     <h3 className="font-black italic uppercase tracking-tighter text-slate-700 dark:text-slate-300">Registro de Turnos Finalizados</h3>
                     <div className="relative w-full max-w-md">
                         <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-                        <input className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl pl-12 pr-6 py-3 text-xs font-bold uppercase tracking-widest placeholder:text-slate-300" placeholder="Buscar por cajero ID..." />
+                        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl pl-12 pr-6 py-3 text-xs font-bold uppercase tracking-widest placeholder:text-slate-300" placeholder="Buscar por cajero, ID o monto..." />
                     </div>
                 </div>
 
@@ -246,14 +271,14 @@ export default function AdminCashPage() {
                                         <div className="inline-block animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div>
                                     </td>
                                 </tr>
-                            ) : history.length === 0 ? (
+                            ) : filteredHistory.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="p-16 text-center opacity-30">
                                         <span className="material-symbols-outlined text-6xl">query_stats</span>
                                         <p className="font-black uppercase italic mt-4">Sin registros para mostrar</p>
                                     </td>
                                 </tr>
-                            ) : history.map(reg => (
+                            ) : filteredHistory.map(reg => (
                                 <tr key={reg.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
                                     <td className="px-3 md:px-8 py-4">
                                         <div className="flex items-center gap-2 md:gap-4">

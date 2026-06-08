@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { ArrowUpRight } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -10,6 +11,7 @@ const formatMoney = (amount: number) => {
 }
 
 export default function DashboardOverview() {
+    const router = useRouter()
     const [stats, setStats] = useState({
         dailySales: 4250000,
         transactions: 24,
@@ -18,6 +20,7 @@ export default function DashboardOverview() {
         pendingAlerts: 5
     })
 
+    const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
     const recentTransactions = [
         { id: "#TRX-1024", customer: "John Doe", amount: 120500, status: "Completed", date: "2023-10-24 14:20" },
         { id: "#TRX-1025", customer: "Jane Smith", amount: 45000, status: "Pending", date: "2023-10-24 14:35" },
@@ -72,7 +75,7 @@ export default function DashboardOverview() {
                 <div className="xl:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <h3 className="text-xl font-black uppercase italic tracking-tighter">Transacciones Recientes</h3>
-                        <button className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Ver Todo</button>
+                        <button onClick={() => router.push('/cash/admin')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Ver Todo</button>
                     </div>
                     <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left">
@@ -103,10 +106,23 @@ export default function DashboardOverview() {
                                                 {trx.status}
                                             </span>
                                         </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <button className="text-slate-300 hover:text-primary transition-colors">
+                                        <td className="px-8 py-6 text-right relative">
+                                            <button
+                                                onClick={() => setOpenActionMenu(openActionMenu === trx.id ? null : trx.id)}
+                                                className="text-slate-300 hover:text-primary transition-colors"
+                                            >
                                                 <span className="material-symbols-outlined text-xl">more_horiz</span>
                                             </button>
+                                            {openActionMenu === trx.id && (
+                                                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                                                    <button onClick={() => { setOpenActionMenu(null); router.push('/cash/admin') }} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left">
+                                                        <span className="material-symbols-outlined text-sm">visibility</span> Ver Detalle
+                                                    </button>
+                                                    <button onClick={() => { setOpenActionMenu(null); alert(`Anular ${trx.id}?`) }} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors text-left">
+                                                        <span className="material-symbols-outlined text-sm">block</span> Anular
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -123,7 +139,7 @@ export default function DashboardOverview() {
                             <span className="material-symbols-outlined text-rose-500 scale-75">notification_important</span>
                         </div>
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between p-4 bg-rose-50/50 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/30 group cursor-pointer hover:scale-[1.02] transition-all">
+                            <div onClick={() => router.push('/inventory?tab=missing')} className="flex items-center justify-between p-4 bg-rose-50/50 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/30 group cursor-pointer hover:scale-[1.02] transition-all">
                                 <div className="flex items-center gap-4">
                                     <span className="material-symbols-outlined text-rose-500 text-xl group-hover:scale-110 transition-transform">priority_high</span>
                                     <div>
@@ -133,7 +149,7 @@ export default function DashboardOverview() {
                                 </div>
                                 <ArrowUpRight className="size-4 text-rose-300" />
                             </div>
-                            <div className="flex items-center justify-between p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30 group cursor-pointer hover:scale-[1.02] transition-all">
+                            <div onClick={() => router.push('/inventory?tab=missing')} className="flex items-center justify-between p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30 group cursor-pointer hover:scale-[1.02] transition-all">
                                 <div className="flex items-center gap-4">
                                     <span className="material-symbols-outlined text-amber-500 text-xl group-hover:scale-110 transition-transform">warning</span>
                                     <div>

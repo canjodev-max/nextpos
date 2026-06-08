@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import { formatMoney } from '@/lib/utils'
+import { printTicket } from '@/lib/printer'
 
 import { API_URL } from "@/lib/api"
 
@@ -177,113 +178,28 @@ export default function CheckoutModal({
         }
     }
 
-    const handlePrintTicket = useCallback(() => {
-        const userData = localStorage.getItem('user')
-        const vendedor = userData ? JSON.parse(userData).name : 'N/A'
+    const [printError, setPrintError] = useState<string | null>(null)
+    const [printing, setPrinting] = useState(false)
 
-        const itemsHtml = items.map(item => {
-            const hasDiscount = item.discountPercentage && item.discountPercentage > 0
-            const originalPrice = item.originalPrice ?? item.price
-            const discountedPrice = item.price
-            return `
-                <tr>
-                    <td colspan="3" class="item-name">${item.name}</td>
-                </tr>
-                <tr>
-                    <td class="item-qty">
-                        ${item.quantity} x
-                        ${hasDiscount
-                            ? `<span class="orig">₲ ${originalPrice.toLocaleString('es-PY')}</span>
-                               <span class="disc"> ₲ ${discountedPrice.toLocaleString('es-PY')} (-${item.discountPercentage}%)</span>`
-                            : `₲ ${discountedPrice.toLocaleString('es-PY')}`
-                        }
-                    </td>
-                    <td class="item-total">₲ ${item.subtotal.toLocaleString('es-PY')}</td>
-                </tr>`
-        }).join('')
-
-        const methodsHtml = paymentEntries.map(e =>
-            `<tr><td>${e.method}</td><td style="text-align:right;">₲ ${e.amount.toLocaleString('es-PY')}</td></tr>`
-        ).join('')
-
-        const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Ticket</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Courier New',monospace; font-size:12px; width:300px; padding:12px; }
-  h2 { text-align:center; font-size:14px; font-weight:bold; margin-bottom:2px; }
-  .center { text-align:center; font-size:10px; color:#555; margin-bottom:6px; }
-  hr { border:none; border-top:1px dashed #000; margin:6px 0; }
-  table { width:100%; border-collapse:collapse; }
-  td { font-size:11px; padding:1px 2px; vertical-align:top; }
-  .label { font-weight:bold; }
-  .item-name { font-weight:bold; padding-top:5px; }
-  .item-qty { padding-left:8px; color:#333; }
-  .item-total { text-align:right; font-weight:bold; }
-  .orig { text-decoration:line-through; color:#999; }
-  .disc { color:#c00; font-weight:bold; }
-  .total-label { font-size:13px; font-weight:bold; }
-  .total-val { font-size:13px; font-weight:bold; text-align:right; }
-  .footer { text-align:center; font-size:10px; color:#555; margin-top:8px; }
-</style>
-</head>
-<body>
-  <h2>TICKET DE VENTA</h2>
-  <p class="center">${new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })}</p>
-  <hr>
-  <table>
-    <tr><td class="label">Cliente:</td><td>${customerName || 'Consumidor Final'}</td></tr>
-    <tr><td class="label">Vendedor:</td><td>${vendedor}</td></tr>
-  </table>
-  <hr>
-  <table>
-    <tr>
-      <td colspan="2" style="font-size:10px;font-weight:bold;text-transform:uppercase;color:#555;">Detalle</td>
-      <td style="font-size:10px;font-weight:bold;text-transform:uppercase;color:#555;text-align:right;">Total</td>
-    </tr>
-    ${itemsHtml}
-  </table>
-  <hr>
-  <table>${methodsHtml}</table>
-  <hr>
-  <table>
-    <tr>
-      <td colspan="2" class="total-label">TOTAL</td>
-      <td class="total-val">₲ ${total.toLocaleString('es-PY')}</td>
-    </tr>
-    ${saleChange > 0 ? `<tr><td colspan="2">Vuelto</td><td style="text-align:right;">₲ ${saleChange.toLocaleString('es-PY')}</td></tr>` : ''}
-  </table>
-  <hr>
-  <p class="footer">¡Gracias por su compra!</p>
-</body>
-</html>`
-
-        const iframe = document.createElement('iframe')
-        iframe.style.position = 'fixed'
-        iframe.style.top = '-9999px'
-        iframe.style.left = '-9999px'
-        iframe.style.width = '320px'
-        iframe.style.height = '600px'
-        document.body.appendChild(iframe)
-
-        const doc = iframe.contentDocument || iframe.contentWindow?.document
-        if (!doc) { document.body.removeChild(iframe); return }
-
-        doc.open()
-        doc.write(html)
-        doc.close()
-
-        iframe.onload = () => {
-            iframe.contentWindow?.focus()
-            iframe.contentWindow?.print()
-            setTimeout(() => {
-                document.body.removeChild(iframe)
-                onSuccess()
-                onClose()
-            }, 500)
+    const handlePrintTicket = useCallback(async () => {
+        setPrintError(null)
+        setPrinting(true)
+        try {
+            const logoUrl = localStorage.getItem('pos_logo_url')
+            await printTicket(
+                items,
+                customerName,
+                total,
+                saleChange,
+                paymentEntries.map(e => ({ method: e.method, amount: e.amount })),
+                logoUrl
+            )
+            onSuccess()
+            onClose()
+        } catch (err: any) {
+            setPrintError(err.message || 'Error al imprimir')
+        } finally {
+            setPrinting(false)
         }
     }, [items, customerName, total, saleChange, paymentEntries, onSuccess, onClose])
 
@@ -420,6 +336,22 @@ export default function CheckoutModal({
                                         <p className="text-center text-sm font-black uppercase tracking-widest text-slate-300">
                                             ¿Desea imprimir el comprobante?
                                         </p>
+
+                                        {printing && (
+                                            <div className="flex items-center justify-center gap-3 py-4">
+                                                <span className="material-symbols-outlined animate-spin text-primary text-2xl">progress_activity</span>
+                                                <span className="text-sm font-black uppercase tracking-widest text-slate-300">Imprimiendo...</span>
+                                            </div>
+                                        )}
+
+                                        {printError && (
+                                            <div className="px-4 py-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-center">
+                                                <p className="text-xs font-black text-rose-400 uppercase tracking-widest mb-1">Error de impresión</p>
+                                                <p className="text-xs text-rose-300/80 font-bold">{printError}</p>
+                                                <p className="text-[10px] text-rose-400/60 mt-2">Asegúrate de usar Chrome/Edge con HTTPS o localhost</p>
+                                            </div>
+                                        )}
+
                                         {customerId ? (
                                             <div className="space-y-3">
                                                 <button onClick={handlePrintInvoice}
@@ -430,8 +362,8 @@ export default function CheckoutModal({
                                                         <p className="text-[10px] opacity-70 font-bold">e-Kuatia / SIFEN</p>
                                                     </div>
                                                 </button>
-                                                <button onClick={handlePrintTicket}
-                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95">
+                                                <button onClick={handlePrintTicket} disabled={printing}
+                                                    className="w-full flex items-center gap-4 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <span className="material-symbols-outlined text-xl">receipt</span>
                                                     <div className="text-left">
                                                         <p className="text-sm font-black">Solo Ticket</p>
@@ -440,15 +372,34 @@ export default function CheckoutModal({
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button onClick={handlePrintTicket}
-                                                className="w-full flex items-center gap-4 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-emerald-600/20">
+                                            <button onClick={handlePrintTicket} disabled={printing}
+                                                className="w-full flex items-center gap-4 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed">
                                                 <span className="material-symbols-outlined text-xl">print</span>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black">Imprimir Ticket</p>
-                                                    <p className="text-[10px] opacity-70 font-bold">Comprobante de venta</p>
+                                                    <p className="text-[10px] opacity-70 font-bold">Comprobante simple</p>
                                                 </div>
                                             </button>
                                         )}
+                                        <details className="group">
+                                            <summary className="text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest cursor-pointer py-2 text-center select-none">
+                                                ⚙ Configurar Logo
+                                            </summary>
+                                            <div className="flex gap-2 pt-2">
+                                                <input type="text" defaultValue={typeof window !== 'undefined' ? localStorage.getItem('pos_logo_url') || '' : ''}
+                                                    placeholder="https://ejemplo.com/logo.png"
+                                                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-bold outline-none focus:border-primary"
+                                                    id="logo-url-input" />
+                                                <button onClick={() => {
+                                                    const val = (document.getElementById('logo-url-input') as HTMLInputElement)?.value
+                                                    if (val) localStorage.setItem('pos_logo_url', val)
+                                                    else localStorage.removeItem('pos_logo_url')
+                                                }}
+                                                    className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                    Guardar
+                                                </button>
+                                            </div>
+                                        </details>
                                         <button onClick={handleSkipPrint}
                                             className="w-full py-3 text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest text-xs transition-colors">
                                             No imprimir — Continuar

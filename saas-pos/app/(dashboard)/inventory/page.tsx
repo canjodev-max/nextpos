@@ -46,6 +46,12 @@ function InventoryContent() {
     const [searchTerm, setSearchTerm] = useState("")
     const [activeTab, setActiveTab] = useState("stock")
 
+    // Filters
+    const [showFilters, setShowFilters] = useState(false)
+    const [filterCategory, setFilterCategory] = useState("")
+    const [filterSaleType, setFilterSaleType] = useState("")
+    const [filterMinStock, setFilterMinStock] = useState("")
+
     // Modals
     const [editProduct, setEditProduct] = useState<Product | null>(null)
     const [restockProduct, setRestockProduct] = useState<Product | null>(null)
@@ -95,6 +101,20 @@ function InventoryContent() {
         } catch (e) { console.error(e) }
     }
 
+    const exportProductsCSV = () => {
+        const headers = ["Nombre", "Código", "Código Barras", "Precio", "Costo", "Stock", "Stock Mín", "Categoría", "Descuento", "Tipo Venta"]
+        const rows = filteredProducts.map(p => [
+            p.name, p.internalCode, p.barcode, p.price, p.cost, p.stock, p.minStock,
+            p.category?.name || '', p.discountPercentage, p.saleType
+        ].join(','))
+        const csv = [headers.join(','), ...rows].join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `inventario-${new Date().toISOString().slice(0,10)}.csv`
+        a.click(); URL.revokeObjectURL(url)
+    }
+
     const filteredProducts = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              p.barcode?.includes(searchTerm) || 
@@ -102,6 +122,9 @@ function InventoryContent() {
         if (!matchesSearch) return false
         if (activeTab === "offers") return p.discountPercentage > 0
         if (activeTab === "missing") return p.stock <= p.minStock && p.trackStock
+        if (filterCategory && p.categoryId !== filterCategory) return false
+        if (filterSaleType && p.saleType !== filterSaleType) return false
+        if (filterMinStock && p.stock > parseInt(filterMinStock)) return false
         return true
     })
 
@@ -157,16 +180,35 @@ function InventoryContent() {
                                     />
                                 </div>
                                 <div className="flex gap-2">
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">
+                                    <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">
                                         <span className="material-symbols-outlined text-lg">filter_list</span>
                                         <span className="hidden sm:inline">Filtros</span>
                                     </button>
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <button onClick={exportProductsCSV} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
                                         <span className="material-symbols-outlined text-lg">download</span>
                                         <span className="hidden sm:inline">Exportar</span>
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Filter Panel */}
+                            {showFilters && (
+                                <div className="flex flex-wrap gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="">Todas las categorías</option>
+                                        {[...new Set(products.map(p => p.category?.name).filter(Boolean))].map(cat => (
+                                            <option key={cat} value={products.find(p => p.category?.name === cat)?.categoryId}>{cat}</option>
+                                        ))}
+                                    </select>
+                                    <select value={filterSaleType} onChange={e => setFilterSaleType(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="">Todos los tipos</option>
+                                        <option value="UNIT">Por Unidad</option>
+                                        <option value="WEIGHT">Por Peso</option>
+                                    </select>
+                                    <input value={filterMinStock} onChange={e => setFilterMinStock(e.target.value)} placeholder="Stock máx..." type="number" className="w-28 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-primary" />
+                                    <button onClick={() => { setFilterCategory(""); setFilterSaleType(""); setFilterMinStock(""); setShowFilters(false) }} className="px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors">Limpiar</button>
+                                </div>
+                            )}
 
                             {/* Table */}
                             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
