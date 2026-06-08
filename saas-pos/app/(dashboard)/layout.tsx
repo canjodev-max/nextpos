@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { NotificationsPanel } from "@/components/NotificationsPanel"
+import { loadSettings, applyTheme } from "@/lib/settings"
 
 type Branding = {
     tenantName?: string
@@ -88,21 +89,16 @@ export default function DashboardLayout({
         }
     }, [])
 
-    // Aplicar colores dinámicos del tenant
+    // Aplicar colores dinámicos del tenant + perfil
     useEffect(() => {
         const root = document.documentElement
-        if (branding.primaryColor) {
-            root.style.setProperty("--color-primary", branding.primaryColor)
-        }
-        if (branding.secondaryColor) {
-            root.style.setProperty("--color-secondary", branding.secondaryColor)
-        }
-        if (branding.darkPrimaryColor) {
-            root.style.setProperty("--color-dark-primary", branding.darkPrimaryColor)
-        }
-        if (branding.darkSecondaryColor) {
-            root.style.setProperty("--color-dark-secondary", branding.darkSecondaryColor)
-        }
+        if (branding.primaryColor) root.style.setProperty("--color-primary", branding.primaryColor)
+        if (branding.secondaryColor) root.style.setProperty("--color-secondary", branding.secondaryColor)
+        if (branding.darkPrimaryColor) root.style.setProperty("--color-dark-primary", branding.darkPrimaryColor)
+        if (branding.darkSecondaryColor) root.style.setProperty("--color-dark-secondary", branding.darkSecondaryColor)
+        // También aplicar colores guardados desde perfil
+        const settings = loadSettings()
+        applyTheme(settings)
     }, [branding])
 
     return (
@@ -201,6 +197,17 @@ export default function DashboardLayout({
                                 <span className="material-symbols-outlined">shield_person</span>
                                 <span className="text-sm font-bold uppercase tracking-tighter italic">Accesos</span>
                             </Link>
+
+                            <div className="pt-4 pb-1 px-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Sistema</p>
+                            </div>
+                            <Link
+                                href="/profile"
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                            >
+                                <span className="material-symbols-outlined">settings</span>
+                                <span className="text-sm font-bold uppercase tracking-tighter italic">Configuración</span>
+                            </Link>
                         </>
                     )}
 
@@ -256,7 +263,10 @@ export default function DashboardLayout({
                             {pathname === '/pos' ? 'POS Terminal' : 
                              pathname === '/inventory' ? 'Inventory Management' :
                              pathname === '/cash' ? 'Cash Management' : 
+                             pathname === '/cash/admin' ? 'Cash Audit' :
+                             pathname === '/customers' ? 'Customers' :
                              pathname === '/roles' ? 'Roles & Access' :
+                             pathname === '/profile' ? 'Configuración' :
                              pathname === '/superadmin' ? 'Panel Superadmin' : 'Dashboard Overview'}
                         </h2>
                         
@@ -264,16 +274,16 @@ export default function DashboardLayout({
                     <div className="flex items-center gap-4">
                         <NotificationsPanel />
                         <div className="h-8 w-px bg-slate-200 dark:bg-slate-800"></div>
-                        <div className="flex items-center gap-3">
+                        <Link href="/profile" className="flex items-center gap-3 group">
                             <div className="text-right hidden sm:block">
-                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{userName}</p>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">{userName}</p>
                                 <p className="text-xs text-slate-500">{userRole}</p>
                             </div>
                             <div 
-                                className="size-10 rounded-full bg-slate-200 dark:bg-slate-800 bg-center bg-no-repeat bg-cover" 
+                                className="size-10 rounded-full bg-slate-200 dark:bg-slate-800 bg-center bg-no-repeat bg-cover group-hover:ring-2 group-hover:ring-primary transition-all" 
                                 style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBeuM1wcosgnu3Xn88Zfvtok6c9-8cswyOAKauGWXRFZ8GCfnAmQI_qGUfQAuIrlzqokL4QhXWm7VwKvwHQ8p_-rQl9hzXVjf6F2PVUhpYWdLRuzafxWonImuMKHFMMtYQwUPgjBxxANwxvR0eCmZIZvWzi0UbNMPCMr2HbIvMcIyRk8gqXMUgZbazfPY2DRXiNt5nIyO_sOnYw_z7CSKtaf1wqwvPTgoJ1YR5IvHPXS6AoqE0DcH2ZDwVxibqogzklFydbD0Dl2Us')" }}
                             ></div>
-                        </div>
+                        </Link>
                     </div>
                 </header>
 

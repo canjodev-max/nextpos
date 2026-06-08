@@ -181,24 +181,23 @@ export default function CheckoutModal({
     const [printError, setPrintError] = useState<string | null>(null)
     const [printing, setPrinting] = useState(false)
 
-    const handlePrintTicket = useCallback(async () => {
+    const handlePrintTicket = useCallback(() => {
         setPrintError(null)
         setPrinting(true)
         try {
-            const logoUrl = localStorage.getItem('pos_logo_url')
-            await printTicket(
+            printTicket(
                 items,
                 customerName,
                 total,
                 saleChange,
-                paymentEntries.map(e => ({ method: e.method, amount: e.amount })),
-                logoUrl
+                paymentEntries.map(e => ({ method: e.method, amount: e.amount }))
             )
-            onSuccess()
-            onClose()
+            setTimeout(() => {
+                onSuccess()
+                onClose()
+            }, 500)
         } catch (err: any) {
             setPrintError(err.message || 'Error al imprimir')
-        } finally {
             setPrinting(false)
         }
     }, [items, customerName, total, saleChange, paymentEntries, onSuccess, onClose])
@@ -381,25 +380,6 @@ export default function CheckoutModal({
                                                 </div>
                                             </button>
                                         )}
-                                        <details className="group">
-                                            <summary className="text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest cursor-pointer py-2 text-center select-none">
-                                                ⚙ Configurar Logo
-                                            </summary>
-                                            <div className="flex gap-2 pt-2">
-                                                <input type="text" defaultValue={typeof window !== 'undefined' ? localStorage.getItem('pos_logo_url') || '' : ''}
-                                                    placeholder="https://ejemplo.com/logo.png"
-                                                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-bold outline-none focus:border-primary"
-                                                    id="logo-url-input" />
-                                                <button onClick={() => {
-                                                    const val = (document.getElementById('logo-url-input') as HTMLInputElement)?.value
-                                                    if (val) localStorage.setItem('pos_logo_url', val)
-                                                    else localStorage.removeItem('pos_logo_url')
-                                                }}
-                                                    className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                                    Guardar
-                                                </button>
-                                            </div>
-                                        </details>
                                         <button onClick={handleSkipPrint}
                                             className="w-full py-3 text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest text-xs transition-colors">
                                             No imprimir — Continuar

@@ -1,145 +1,127 @@
-import * as EscPos from './escpos'
+import { loadSettings } from './settings'
 
-let cachedPort: SerialPort | null = null
-
-function isWebSerialAvailable(): boolean {
-  return typeof navigator !== 'undefined' && 'serial' in navigator
-}
-
-export async function connectPrinter(): Promise<SerialPort> {
-  if (cachedPort) {
-    try {
-      await cachedPort.getInfo()
-      return cachedPort
-    } catch {
-      cachedPort = null
-    }
-  }
-  if (!isWebSerialAvailable()) {
-    throw new Error('WebSerial no está disponible. Usa Chrome/Edge con HTTPS o localhost.')
-  }
-  const port = await navigator.serial.requestPort()
-  await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' })
-  cachedPort = port
-  return port
-}
-
-export async function disconnectPrinter(): Promise<void> {
-  if (cachedPort) {
-    try { await cachedPort.close() } catch {}
-    cachedPort = null
-  }
-}
-
-export async function printRaw(data: Uint8Array): Promise<void> {
-  const port = await connectPrinter()
-  const writer = port.writable!.getWriter()
-  try {
-    await writer.write(data)
-  } finally {
-    writer.releaseLock()
-  }
-}
-
-export async function printTicket(
+export function printTicket(
   items: { name: string; quantity: number; price: number; subtotal: number; originalPrice?: number; discountPercentage?: number }[],
   customerName: string | null,
   total: number,
   saleChange: number,
-  paymentEntries: { method: string; amount: number }[],
-  logoUrl?: string | null
-): Promise<void> {
-  const chunks: Uint8Array[] = []
-  const push = (...arrs: Uint8Array[]) => chunks.push(...arrs)
-
-  push(EscPos.init())
-  push(EscPos.setCharacterCodeTable(16))
-  push(EscPos.align('center'))
-
+  paymentEntries: { method: string; amount: number }[]
+): void {
+  const s = loadSettings()
   const userData = localStorage.getItem('user')
   const vendedor = userData ? JSON.parse(userData).name : 'N/A'
 
-  if (logoUrl) {
-    try {
-      const imgData = await EscPos.rasterImage(logoUrl, 384)
-      push(imgData)
-      push(EscPos.lineFeed(1))
-    } catch {}
-  }
+  const sep = '─'.repeat(40)
+  const fmt = (n: number) => 'Gs. ' + n.toLocaleString('es-PY')
 
-  push(EscPos.bold(true))
-  push(EscPos.setCharSize(1, 1))
-  push(EscPos.textLine('TICKET DE VENTA'))
-  push(EscPos.setCharSize(0, 0))
-  push(EscPos.bold(false))
-  push(EscPos.lineFeed(1))
-  push(EscPos.align('center'))
-  push(EscPos.textLine(EscPos.formatDate(new Date())))
-  push(EscPos.separator())
-  push(EscPos.align('left'))
-  push(EscPos.textLine('Cliente: ' + (customerName || 'Consumidor Final')))
-  push(EscPos.textLine('Vendedor: ' + vendedor))
-  push(EscPos.separator())
-  push(EscPos.align('center'))
-  push(EscPos.textLine('Detalle'))
-  push(EscPos.separator())
-
-  for (const item of items) {
-    push(EscPos.align('left'))
-    push(EscPos.bold(true))
-    push(EscPos.textLine(item.name))
-    push(EscPos.bold(false))
-
+  const itemLines = items.flatMap(item => {
+    const lines: string[] = []
+    lines.push(item.name)
     const hasDiscount = item.discountPercentage && item.discountPercentage > 0
-    const originalPrice = item.originalPrice ?? item.price
-    const discountedPrice = item.price
+    const orig = item.originalPrice ?? item.price
+    const disc = item.price
+    lines.push(hasDiscount
+      ? `  ${item.quantity} x ${fmt(orig)} → ${fmt(disc)} (-${item.discountPercentage}%)`
+      : `  ${item.quantity} x ${fmt(disc)}`)
+    lines.push(`  Subtotal:`.padEnd(32) + fmt(item.subtotal))
+    return lines
+  }).join('\n')
 
-    if (hasDiscount) {
-      const line = `${item.quantity} x ${EscPos.money(originalPrice)} → ${EscPos.money(discountedPrice)} (-${item.discountPercentage}%)`
-      push(EscPos.text('  '))
-      push(EscPos.textLine(line))
-    } else {
-      const line = `${item.quantity} x ${EscPos.money(discountedPrice)}`
-      push(EscPos.text('  '))
-      push(EscPos.textLine(line))
+  const methodsText = paymentEntries.map(e =>
+    `${e.method}`.padEnd(32) + fmt(e.amount)
+  ).join('\n')
+
+  const dateStr = new Date().toLocaleString('es-PY', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+
+  const changeText = saleChange > 0
+    ? `\n<div class="change-line"><span>Vuelto</span><span>${fmt(saleChange)}</span></div>`
+    : ''
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Ticket</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Courier New', 'Lucida Console', monospace;
+    font-size: 10pt; width: 72mm; margin: 0 auto;
+    padding: 2mm 0; color: ${s.ticketColorPrimary};
+  }
+  .ticket { width: 100%; }
+  .logo { text-align: center; margin-bottom: 3mm; }
+  .logo-img { max-width: 60mm; max-height: 25mm; }
+  .header { text-align: center; font-weight: bold; font-size: 12pt; letter-spacing: 0.5pt; }
+  .center { text-align: center; font-size: 9pt; color: ${s.ticketColorSecondary}; }
+  .bold { font-weight: bold; }
+  .sep { font-size: 8pt; letter-spacing: 0; margin: 1.5mm 0; }
+  pre {
+    font-family: 'Courier New', monospace;
+    font-size: 9pt; white-space: pre; line-height: 1.3;
+  }
+  .items { margin: 1mm 0; }
+  .methods { margin: 1mm 0; }
+  .total-line {
+    display: flex; justify-content: space-between;
+    font-weight: bold; font-size: 11pt;
+  }
+  .change-line {
+    display: flex; justify-content: space-between;
+    font-size: 9pt; color: ${s.ticketColorSecondary};
+  }
+  .footer { text-align: center; font-size: 9pt; margin-top: 3mm; color: ${s.ticketColorSecondary}; }
+  @media print { html, body { width: 80mm; } }
+</style>
+</head>
+<body>
+<div class="ticket">
+  ${s.logoUrl ? `<div class="logo"><img src="${s.logoUrl}" alt="Logo" class="logo-img"></div>` : ''}
+  <div class="header">${s.ticketHeader}</div>
+  <div class="center">${dateStr}</div>
+  <div class="sep">${sep}</div>
+  <div>Cliente: ${customerName || 'Consumidor Final'}</div>
+  <div>Vendedor: ${vendedor}</div>
+  <div class="sep">${sep}</div>
+  <div class="center bold">DETALLE</div>
+  <div class="sep">${sep}</div>
+  <pre class="items">${itemLines}</pre>
+  <div class="sep">${sep}</div>
+  <pre class="methods">${methodsText}</pre>
+  <div class="sep">${sep}</div>
+  <div class="total-line"><span>TOTAL</span><span>${fmt(total)}</span></div>${changeText}
+  <div class="sep">${sep}</div>
+  <div class="footer">${s.ticketFooter}</div>
+</div>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=400,height=600,menubar=no,toolbar=no,location=no')
+  if (win) {
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    win.print()
+  } else {
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.top = '-9999px'
+    iframe.style.left = '-9999px'
+    iframe.style.width = '320px'
+    iframe.style.height = '600px'
+    document.body.appendChild(iframe)
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (doc) {
+      doc.open()
+      doc.write(html)
+      doc.close()
+      iframe.onload = () => {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+        setTimeout(() => document.body.removeChild(iframe), 1000)
+      }
     }
-
-    const sub = '  Subtotal: ' + EscPos.money(item.subtotal)
-    push(EscPos.align('right'))
-    push(EscPos.textLine(sub))
-    push(EscPos.lineFeed())
   }
-
-  push(EscPos.separator())
-  push(EscPos.align('left'))
-  for (const pmt of paymentEntries) {
-    push(EscPos.textLine(pmt.method + '  ' + EscPos.money(pmt.amount)))
-  }
-  push(EscPos.separator())
-  push(EscPos.align('right'))
-  push(EscPos.bold(true))
-  push(EscPos.setCharSize(1, 1))
-  push(EscPos.textLine('TOTAL: ' + EscPos.money(total)))
-  push(EscPos.setCharSize(0, 0))
-  push(EscPos.bold(false))
-
-  if (saleChange > 0) {
-    push(EscPos.textLine('Vuelto: ' + EscPos.money(saleChange)))
-  }
-
-  push(EscPos.lineFeed(2))
-  push(EscPos.align('center'))
-  push(EscPos.textLine('¡Gracias por su compra!'))
-  push(EscPos.lineFeed(3))
-  push(EscPos.cutPartial())
-
-  const totalLength = chunks.reduce((acc, c) => acc + c.length, 0)
-  const all = new Uint8Array(totalLength)
-  let offset = 0
-  for (const c of chunks) {
-    all.set(c, offset)
-    offset += c.length
-  }
-
-  await printRaw(all)
 }
