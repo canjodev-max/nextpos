@@ -1,27 +1,18 @@
 import { loadSettings } from './settings'
 
-const W = 80
-const PRICE_COL = 48
-
-function center(text: string): string {
+function center(text: string, W: number): string {
   const pad = Math.max(0, Math.floor((W - text.length) / 2))
   return ' '.repeat(pad) + text
 }
 
-function r(val: string): string {
-  return val.length >= W - PRICE_COL
-    ? val.slice(0, W - PRICE_COL)
-    : ' '.repeat(W - PRICE_COL - val.length) + val
-}
-
-function lr(left: string, right: string): string {
-  const l = left.length > PRICE_COL ? left.slice(0, PRICE_COL) : left
-  const rPadded = right.length > W - PRICE_COL ? right.slice(0, W - PRICE_COL) : ' '.repeat(W - PRICE_COL - right.length) + right
+function lr(left: string, right: string, W: number, PC: number): string {
+  const l = left.length > PC ? left.slice(0, PC) : left
+  const rPadded = right.length > W - PC ? right.slice(0, W - PC) : ' '.repeat(W - PC - right.length) + right
   return l + rPadded
 }
 
-function sep(char: string = '=', width: number = W): string {
-  return char.repeat(width)
+function sep(char: string, W: number): string {
+  return char.repeat(W)
 }
 
 export function formatTicketText(
@@ -32,6 +23,8 @@ export function formatTicketText(
   paymentEntries: { method: string; amount: number }[]
 ): string {
   const s = loadSettings()
+  const W = s.ticketWidth || 80
+  const PRICE_COL = Math.floor(W * 0.6)
   const userData = localStorage.getItem('user')
   const vendedor = userData ? JSON.parse(userData).name : 'N/A'
   const fmt = (n: number) => 'Gs. ' + n.toLocaleString('es-PY')
@@ -43,21 +36,21 @@ export function formatTicketText(
 
   const lines: string[] = []
 
-  lines.push(center(s.companyName || ''))
+  lines.push(center(s.companyName || '', W))
 
   if (s.logoUrl) {
-    lines.push(center('[LOGO]'))
+    lines.push(center('[LOGO]', W))
     lines.push('')
   }
 
-  lines.push(center(s.ticketHeader))
-  lines.push(center(dateStr))
-  lines.push(sep())
+  lines.push(center(s.ticketHeader, W))
+  lines.push(center(dateStr, W))
+  lines.push(sep('=', W))
   lines.push(`CLIENTE: ${customerName || 'Consumidor Final'}`)
   lines.push(`VENDEDOR: ${vendedor}`)
-  lines.push(sep())
-  lines.push(center('DETALLE'))
-  lines.push(sep())
+  lines.push(sep('=', W))
+  lines.push(center('DETALLE', W))
+  lines.push(sep('=', W))
 
   for (const item of items) {
     lines.push(item.name.slice(0, W))
@@ -67,28 +60,28 @@ export function formatTicketText(
     const disc = item.price
 
     if (hasDiscount) {
-      lines.push(lr(`  ${item.quantity} x ${fmt(orig)}`, fmt(disc)))
-      lines.push(lr(`  Desc: -${item.discountPercentage}%`, ''))
+      lines.push(lr(`  ${item.quantity} x ${fmt(orig)}`, fmt(disc), W, PRICE_COL))
+      lines.push(lr(`  Desc: -${item.discountPercentage}%`, '', W, PRICE_COL))
     } else {
-      lines.push(lr(`  ${item.quantity} x ${fmt(disc)}`, fmt(item.subtotal)))
+      lines.push(lr(`  ${item.quantity} x ${fmt(disc)}`, fmt(item.subtotal), W, PRICE_COL))
     }
   }
 
-  lines.push(sep('-'))
+  lines.push(sep('-', W))
   for (const pmt of paymentEntries) {
-    lines.push(lr(pmt.method, fmt(pmt.amount)))
+    lines.push(lr(pmt.method, fmt(pmt.amount), W, PRICE_COL))
   }
-  lines.push(sep('-'))
+  lines.push(sep('-', W))
 
-  lines.push(lr('TOTAL', fmt(total)))
+  lines.push(lr('TOTAL', fmt(total), W, PRICE_COL))
   if (saleChange > 0) {
-    lines.push(lr('VUELTO', fmt(saleChange)))
+    lines.push(lr('VUELTO', fmt(saleChange), W, PRICE_COL))
   }
 
-  lines.push(sep())
+  lines.push(sep('=', W))
   if (s.ticketFooter) {
     lines.push('')
-    lines.push(center(s.ticketFooter))
+    lines.push(center(s.ticketFooter, W))
   }
   lines.push('')
   lines.push('')
@@ -104,19 +97,7 @@ export function printTicket(
   paymentEntries: { method: string; amount: number }[]
 ): void {
   const text = formatTicketText(items, customerName, total, saleChange, paymentEntries)
-
-  const s = loadSettings()
-  const url = s.printServerUrl || 'http://127.0.0.1:9876'
-  const params = s.printerName ? `?printer=${encodeURIComponent(s.printerName)}` : ''
-
-  fetch(`${url}/print${params}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: text,
-  }).then(res => {
-    if (res.ok) return
-    openTextPrint(text)
-  }).catch(() => openTextPrint(text))
+  openTextPrint(text)
 }
 
 function openTextPrint(text: string) {

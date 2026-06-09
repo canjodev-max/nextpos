@@ -9,6 +9,7 @@ export type PosSettings = {
   ticketColorSecondary: string
   printServerUrl: string
   printerName: string
+  ticketWidth: number
 }
 
 const DEFAULTS: PosSettings = {
@@ -22,6 +23,7 @@ const DEFAULTS: PosSettings = {
   ticketColorSecondary: '#555555',
   printServerUrl: 'http://127.0.0.1:9876',
   printerName: '',
+  ticketWidth: 80,
 }
 
 export function loadSettings(): PosSettings {

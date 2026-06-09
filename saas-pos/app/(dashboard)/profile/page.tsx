@@ -123,26 +123,11 @@ export default function ProfilePage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-slate-500">Print Server URL</label>
-            <input type="text" value={s.printServerUrl} onChange={e => update({ printServerUrl: e.target.value })}
-              placeholder="http://127.0.0.1:9876"
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold outline-none focus:border-primary transition-colors" />
-            <p className="text-[10px] text-slate-400">Servidor local que envía texto sin formato a la impresora. Corre con <code className="px-1 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[10px] font-bold">node print-server/server.js</code></p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-slate-500">Nombre de Impresora</label>
-            <input type="text" value={s.printerName} onChange={e => update({ printerName: e.target.value })}
-              placeholder="(impresora predeterminada)"
+            <label className="text-xs font-black uppercase tracking-widest text-slate-500">Ancho del Ticket (columnas)</label>
+            <input type="number" min="40" max="200" value={s.ticketWidth} onChange={e => update({ ticketWidth: parseInt(e.target.value) || 80 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-primary transition-colors" />
-            <p className="text-[10px] text-slate-400">Déjalo vacío para usar la impresora predeterminada del sistema</p>
+            <p className="text-[10px] text-slate-400">80 para factura, 42 para tiquetera 58mm, 56 para térmica 80mm</p>
           </div>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 text-xs text-slate-500 space-y-2">
-          <p className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest text-[10px]">¿Cómo funciona?</p>
-          <p>1. El ticket se genera como <strong>texto plano de 80 columnas</strong> (sin HTML, sin tablas).</p>
-          <p>2. Si el <strong>Print Server</strong> está corriendo, se envía el texto directamente a la impresora.</p>
-          <p>3. Si no hay servidor, se abre el diálogo de impresión del navegador con el texto en un <code className="px-1 bg-slate-200 dark:bg-slate-700 rounded font-bold">&lt;pre&gt;</code>.</p>
-          <p className="text-slate-400 mt-1">Para imágenes: en el futuro se usarán comandos ESC/POS vía el print server.</p>
         </div>
       </section>
 
