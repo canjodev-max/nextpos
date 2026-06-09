@@ -31,27 +31,23 @@ export default function DashboardLayout({
         router.push("/login")
     }
 
-    const [branding, setBranding] = useState<Branding>(() => {
-        if (typeof window !== "undefined") {
-            const userStr = localStorage.getItem("user")
-            if (userStr) {
-                try {
-                    const user = JSON.parse(userStr)
-                    return {
-                        tenantName: user.tenantName || user.name?.split(" ")[0] + "'s Shop",
-                        tenantLogoUrl: user.tenantLogoUrl || null,
-                        primaryColor: user.primaryColor || "#135bec",
-                        secondaryColor: user.secondaryColor || "#6366f1",
-                        darkPrimaryColor: user.darkPrimaryColor || "#3b82f6",
-                        darkSecondaryColor: user.darkSecondaryColor || "#818cf8",
-                    }
-                } catch {
-                    return {}
-                }
-            }
+    const loadBranding = (): Branding => {
+        if (typeof window === "undefined") return {}
+        const settings = loadSettings()
+        const userStr = localStorage.getItem("user")
+        let user: Record<string, any> = {}
+        if (userStr) try { user = JSON.parse(userStr) } catch {}
+        return {
+            tenantName: settings.companyName || user.tenantName || user.name?.split(" ")[0] + "'s Shop",
+            tenantLogoUrl: settings.logoUrl || user.tenantLogoUrl || null,
+            primaryColor: settings.primaryColor || user.primaryColor || "#135bec",
+            secondaryColor: settings.secondaryColor || user.secondaryColor || "#6366f1",
+            darkPrimaryColor: settings.primaryColor || user.darkPrimaryColor || "#3b82f6",
+            darkSecondaryColor: settings.secondaryColor || user.darkSecondaryColor || "#818cf8",
         }
-        return {}
-    })
+    }
+
+    const [branding, setBranding] = useState<Branding>(loadBranding)
 
     const [userRole, setUserRole] = useState<string | null>(() => {
         if (typeof window !== "undefined") {
@@ -89,16 +85,14 @@ export default function DashboardLayout({
         }
     }, [])
 
+    // Releer branding al navegar (para reflejar cambios de /profile)
+    useEffect(() => {
+        setBranding(loadBranding())
+    }, [pathname])
+
     // Aplicar colores dinámicos del tenant + perfil
     useEffect(() => {
-        const root = document.documentElement
-        if (branding.primaryColor) root.style.setProperty("--color-primary", branding.primaryColor)
-        if (branding.secondaryColor) root.style.setProperty("--color-secondary", branding.secondaryColor)
-        if (branding.darkPrimaryColor) root.style.setProperty("--color-dark-primary", branding.darkPrimaryColor)
-        if (branding.darkSecondaryColor) root.style.setProperty("--color-dark-secondary", branding.darkSecondaryColor)
-        // También aplicar colores guardados desde perfil
-        const settings = loadSettings()
-        applyTheme(settings)
+        applyTheme(loadSettings())
     }, [branding])
 
     return (

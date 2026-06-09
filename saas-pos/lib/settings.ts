@@ -45,6 +45,7 @@ export function saveSettings(s: Partial<PosSettings>): PosSettings {
   if (userStr) {
     try {
       const user = JSON.parse(userStr)
+      user.tenantName = merged.companyName || user.tenantName
       user.tenantLogoUrl = merged.logoUrl || user.tenantLogoUrl
       user.primaryColor = merged.primaryColor
       user.secondaryColor = merged.secondaryColor
