@@ -1,18 +1,27 @@
 import { loadSettings } from './settings'
 
 const W = 80
+const PRICE_COL = 48
 
-function center(text: string, width: number = W): string {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2))
+function center(text: string): string {
+  const pad = Math.max(0, Math.floor((W - text.length) / 2))
   return ' '.repeat(pad) + text
 }
 
-function padRight(text: string, width: number = W): string {
-  return text.length >= width ? text.slice(0, width) : text + ' '.repeat(width - text.length)
+function r(val: string): string {
+  return val.length >= W - PRICE_COL
+    ? val.slice(0, W - PRICE_COL)
+    : ' '.repeat(W - PRICE_COL - val.length) + val
 }
 
-function line(sep: string = '─', width: number = W): string {
-  return sep.repeat(width)
+function lr(left: string, right: string): string {
+  const l = left.length > PRICE_COL ? left.slice(0, PRICE_COL) : left
+  const rPadded = right.length > W - PRICE_COL ? right.slice(0, W - PRICE_COL) : ' '.repeat(W - PRICE_COL - right.length) + right
+  return l + rPadded
+}
+
+function sep(char: string = '=', width: number = W): string {
+  return char.repeat(width)
 }
 
 export function formatTicketText(
@@ -34,50 +43,53 @@ export function formatTicketText(
 
   const lines: string[] = []
 
+  lines.push(center(s.companyName || ''))
+
   if (s.logoUrl) {
     lines.push(center('[LOGO]'))
+    lines.push('')
   }
 
   lines.push(center(s.ticketHeader))
   lines.push(center(dateStr))
-  lines.push(line())
-
-  lines.push(`Cliente: ${customerName || 'Consumidor Final'}`)
-  lines.push(`Vendedor: ${vendedor}`)
-  lines.push(line())
+  lines.push(sep())
+  lines.push(`CLIENTE: ${customerName || 'Consumidor Final'}`)
+  lines.push(`VENDEDOR: ${vendedor}`)
+  lines.push(sep())
   lines.push(center('DETALLE'))
-  lines.push(line())
+  lines.push(sep())
 
   for (const item of items) {
     lines.push(item.name.slice(0, W))
+
     const hasDiscount = item.discountPercentage && item.discountPercentage > 0
     const orig = item.originalPrice ?? item.price
     const disc = item.price
+
     if (hasDiscount) {
-      const qtyLine = `  ${item.quantity} x ${fmt(orig)} => ${fmt(disc)} (-${item.discountPercentage}%)`
-      lines.push(qtyLine.slice(0, W))
+      lines.push(lr(`  ${item.quantity} x ${fmt(orig)}`, fmt(disc)))
+      lines.push(lr(`  Desc: -${item.discountPercentage}%`, ''))
     } else {
-      lines.push(`  ${item.quantity} x ${fmt(disc)}`)
+      lines.push(lr(`  ${item.quantity} x ${fmt(disc)}`, fmt(item.subtotal)))
     }
-    const sub = `  Subtotal:`.padEnd(W - 14) + fmt(item.subtotal)
-    lines.push(sub)
   }
 
-  lines.push(line())
+  lines.push(sep('-'))
   for (const pmt of paymentEntries) {
-    const m = padRight(pmt.method, W - 14) + fmt(pmt.amount)
-    lines.push(m)
+    lines.push(lr(pmt.method, fmt(pmt.amount)))
   }
-  lines.push(line())
+  lines.push(sep('-'))
 
-  lines.push(padRight('TOTAL', W - 14) + fmt(total))
+  lines.push(lr('TOTAL', fmt(total)))
   if (saleChange > 0) {
-    lines.push(padRight('Vuelto', W - 14) + fmt(saleChange))
+    lines.push(lr('VUELTO', fmt(saleChange)))
   }
 
-  lines.push(line())
-  lines.push(center(s.ticketFooter))
-  lines.push('')
+  lines.push(sep())
+  if (s.ticketFooter) {
+    lines.push('')
+    lines.push(center(s.ticketFooter))
+  }
   lines.push('')
   lines.push('')
 
@@ -97,7 +109,6 @@ export function printTicket(
   const url = s.printServerUrl || 'http://127.0.0.1:9876'
   const params = s.printerName ? `?printer=${encodeURIComponent(s.printerName)}` : ''
 
-  // 1. Intentar print server local
   fetch(`${url}/print${params}`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
@@ -114,15 +125,10 @@ function openTextPrint(text: string) {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Ticket</title>
 <style>
-  @page { size: letter; margin: 0.3in; }
+  @page { size: 8.5in 11in; margin: 0.2in; }
   * { margin: 0; padding: 0; }
-  body {
-    font-family: 'Courier New', 'Lucida Console', monospace;
-    font-size: 10pt; line-height: 1.1;
-    white-space: pre;
-  }
-  pre { margin: 0; padding: 0; font-size: 10pt; line-height: 1.1; }
-  @media print { body { width: 8in; } }
+  body { font-family: 'Courier New', 'Lucida Console', monospace; font-size: 9pt; line-height: 1.15; white-space: pre; }
+  pre { margin: 0; padding: 0; font-size: 9pt; line-height: 1.15; }
 </style>
 </head>
 <body><pre>${escapeHtml(text)}</pre></body>
@@ -140,6 +146,8 @@ function openTextPrint(text: string) {
   const iframe = document.createElement('iframe')
   iframe.style.position = 'fixed'
   iframe.style.top = '-9999px'
+  iframe.style.width = '700px'
+  iframe.style.height = '600px'
   document.body.appendChild(iframe)
   const doc = iframe.contentDocument || iframe.contentWindow?.document
   if (doc) {
