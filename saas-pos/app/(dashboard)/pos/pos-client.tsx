@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { WeightInputModal } from "@/components/WeightInputModal"
 import { ReturnModal } from "@/components/pos/ReturnModal"
 import { QuickWasteModal } from "@/components/pos/QuickWasteModal"
-import { OpticComposerModal } from "@/components/pos/OpticComposerModal"
+import { OpticModuleModal } from "@/components/pos/OpticModuleModal"
 import { OpenCashModal } from "@/components/cash/OpenCashModal"
 import { CloseCashWizard } from "@/components/cash/CloseCashWizard"
 import { CashMovementsModal } from "@/components/cash/CashMovementsModal"
@@ -81,7 +81,7 @@ export default function POSClient() {
     const [wasteModalOpen, setWasteModalOpen] = useState(false)
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
     const [closeCashOpen, setCloseCashOpen] = useState(false)
-    const [opticComposerOpen, setOpticComposerOpen] = useState(false)
+    const [opticModuleOpen, setOpticModuleOpen] = useState(false)
     const [registerId, setRegisterId] = useState<string>("")
     const [cashOpen, setCashOpen] = useState<boolean>(false)
     const [showCashModal, setShowCashModal] = useState(false)
@@ -144,6 +144,7 @@ export default function POSClient() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "F2") { e.preventDefault(); handleCheckout(); }
+            if (e.key === "F8") { e.preventDefault(); setOpticModuleOpen(true); }
             if (e.key === "F9") { e.preventDefault(); setReturnModalOpen(true); }
             if (e.key === "F10") { e.preventDefault(); setWasteModalOpen(true); }
             if (e.key === "F4") { e.preventDefault(); setWithdrawModalOpen(true); }
@@ -679,7 +680,7 @@ export default function POSClient() {
 
             <footer className="bg-slate-900 text-white flex items-center px-3 md:px-6 justify-between shrink-0 border-t border-slate-800 shadow-2xl z-20 overflow-x-auto h-14">
                 <div className="flex items-center gap-4 md:gap-8 min-w-max">
-                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setOpticComposerOpen(true)}>
+                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setOpticModuleOpen(true)}>
                         <span className="material-symbols-outlined text-sm text-slate-500 group-hover:text-primary transition-colors">visibility</span>
                         <span className="text-[10px] text-slate-500 font-black uppercase group-hover:text-slate-300 transition-colors">Óptica</span>
                     </div>
@@ -742,11 +743,10 @@ export default function POSClient() {
                 productName={selectedWeightProduct?.name || ""}
                 pricePerKg={Number(selectedWeightProduct?.price || 0)}
             />
-            <OpticComposerModal
-                isOpen={opticComposerOpen}
-                onClose={() => setOpticComposerOpen(false)}
-                onAddToCart={handleOpticAddToCart}
-                selectedFrameId={null}
+            <OpticModuleModal
+                isOpen={opticModuleOpen}
+                onClose={() => setOpticModuleOpen(false)}
+                onAddLensToCart={handleOpticAddToCart}
             />
             <ReturnModal isOpen={returnModalOpen} onClose={() => setReturnModalOpen(false)} onSuccess={() => router.refresh()} />
             <QuickWasteModal isOpen={wasteModalOpen} onClose={() => setWasteModalOpen(false)} onSuccess={() => router.refresh()} />
