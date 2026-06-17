@@ -14,6 +14,10 @@ type PromotionalRule = {
     benefitValue: string | null; isActive: boolean; startDate: string | null; endDate: string | null;
 }
 
+type FrameLensRule = {
+    id: string; lensTypeId: string; frameProductId: string; specialPrice: number; isActive: boolean;
+}
+
 type Product = { id: string; name: string; price: number; internalCode: string | null; barcode: string | null }
 type Customer = { id: string; name: string; email: string; phone: string; documentId?: string }
 
@@ -292,20 +296,25 @@ function CotizadorTab() {
                             </div>
 
                             <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mt-6">
-                                <span className="material-symbols-outlined text-primary">checklist</span>
+                                <span className="material-symbols-outlined text-primary">toggle_on</span>
                                 Extras
                             </h3>
-                            <div className="space-y-2">
-                                {lensExtras.filter(e => e.isActive).map(extra => (
-                                    <label key={extra.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/50 cursor-pointer hover:bg-slate-700 transition-colors">
-                                        <input type="checkbox" checked={selectedExtras.includes(extra.id)}
-                                            onChange={() => toggleExtra(extra.id)} className="w-4 h-4 accent-primary" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold text-white">{extra.name}</p>
-                                            <p className="text-xs text-slate-400">{fmt(extra.price)}</p>
-                                        </div>
-                                    </label>
-                                ))}
+                            <div className="grid grid-cols-2 gap-2">
+                                {lensExtras.filter(e => e.isActive).map(extra => {
+                                    const active = selectedExtras.includes(extra.id);
+                                    return (
+                                        <button key={extra.id} onClick={() => toggleExtra(extra.id)}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all active:scale-95 ${active ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/20" : "bg-slate-700/50 border-slate-600 text-slate-300 hover:border-slate-500"}`}>
+                                            <span className={`material-symbols-outlined text-lg ${active ? "text-primary" : "text-slate-500"}`}>
+                                                {active ? "check_circle" : "add_circle"}
+                                            </span>
+                                            <div className="text-left flex-1">
+                                                <p className="text-sm font-bold">{extra.name}</p>
+                                                <p className={`text-xs ${active ? "text-primary/80" : "text-slate-400"}`}>{fmt(extra.price)}</p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -554,13 +563,14 @@ function HistorialTab() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function ConfiguracionTab() {
-    const [cfgTab, setCfgTab] = useState<"tipos" | "indices" | "extras" | "rangos">("tipos")
+    const [cfgTab, setCfgTab] = useState<"tipos" | "indices" | "extras" | "rangos" | "marcos">("tipos")
 
     const cfgTabs = [
         { id: "tipos" as const, label: "Tipos de Lente" },
         { id: "indices" as const, label: "Índices" },
         { id: "extras" as const, label: "Extras" },
-        { id: "rangos" as const, label: "Rangos de Graduación" },
+        { id: "rangos" as const, label: "Rangos" },
+        { id: "marcos" as const, label: "Precio x Marco" },
     ]
 
     return (
@@ -578,6 +588,7 @@ function ConfiguracionTab() {
                 {cfgTab === "indices" && <LensIndexesManager />}
                 {cfgTab === "extras" && <LensExtrasManager />}
                 {cfgTab === "rangos" && <GraduationRangesManager />}
+                {cfgTab === "marcos" && <FrameLensRulesManager />}
             </div>
         </div>
     )
@@ -850,6 +861,95 @@ function GraduationRangesManager() {
                         </div>
                     </div>
                 ))}
+            </div>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  FRAME LENS RULES (Precio especial de lente según marco)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function FrameLensRulesManager() {
+    const [items, setItems] = useState<FrameLensRule[]>([])
+    const [products, setProducts] = useState<Product[]>([])
+    const [lensTypes, setLensTypes] = useState<LensType[]>([])
+    const [loading, setLoading] = useState(true)
+    const [editId, setEditId] = useState<string | null>(null)
+    const [form, setForm] = useState({ lensTypeId: "", frameProductId: "", specialPrice: 0, isActive: true })
+
+    const fetchItems = async () => {
+        const [r, p, l] = await Promise.all([
+            fetch(`${API_URL}/api/optics-settings/frame-lens-rules`, { headers: headers() }),
+            fetch(`${API_URL}/api/products`, { headers: headers() }),
+            fetch(`${API_URL}/api/optics-settings/lens-types`, { headers: headers() }),
+        ])
+        if (r.ok) setItems(await r.json())
+        if (p.ok) setProducts(await p.json())
+        if (l.ok) setLensTypes(await l.json())
+        setLoading(false)
+    }
+    useEffect(() => { fetchItems() }, [])
+
+    const handleSave = async () => {
+        if (!form.lensTypeId || !form.frameProductId) return toast.error("Selecciona lente y marco")
+        try {
+            const url = editId ? `${API_URL}/api/optics-settings/frame-lens-rules/${editId}` : `${API_URL}/api/optics-settings/frame-lens-rules`
+            const method = editId ? "PUT" : "POST"
+            const res = await fetch(url, { method, headers: headers(), body: JSON.stringify(form) })
+            if (!res.ok) throw new Error("Error")
+            toast.success(editId ? "Actualizado" : "Creado")
+            setEditId(null); setForm({ lensTypeId: "", frameProductId: "", specialPrice: 0, isActive: true }); fetchItems()
+        } catch { toast.error("Error al guardar") }
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("¿Eliminar?")) return
+        const res = await fetch(`${API_URL}/api/optics-settings/frame-lens-rules/${id}`, { method: "DELETE", headers: headers() })
+        if (res.ok) { toast.success("Eliminado"); fetchItems() }
+    }
+
+    if (loading) return <p className="text-slate-500">Cargando...</p>
+
+    return (
+        <div className="space-y-4">
+            <p className="text-xs text-slate-400 font-medium">Precio especial de lente cuando se combina con un marco específico</p>
+            <div className="grid grid-cols-4 gap-3">
+                <select value={form.lensTypeId} onChange={e => setForm({ ...form, lensTypeId: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value="">Tipo de lente...</option>
+                    {lensTypes.filter(l => l.isActive).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                <select value={form.frameProductId} onChange={e => setForm({ ...form, frameProductId: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value="">Marco...</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <input type="number" value={form.specialPrice} onChange={e => setForm({ ...form, specialPrice: parseFloat(e.target.value) || 0 })} placeholder="Precio especial lente" className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm" />
+                <div className="flex gap-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-300">
+                        <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} className="accent-primary" />Activo
+                    </label>
+                    <button onClick={handleSave} className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest">{editId ? "Actualizar" : "Agregar"}</button>
+                    {editId && <button onClick={() => { setEditId(null); setForm({ lensTypeId: "", frameProductId: "", specialPrice: 0, isActive: true }) }} className="text-xs text-slate-400 hover:text-white">Cancelar</button>}
+                </div>
+            </div>
+            <div className="space-y-2">
+                {items.map(item => {
+                    const lens = lensTypes.find(l => l.id === item.lensTypeId)
+                    const frame = products.find(p => p.id === item.frameProductId)
+                    return (
+                        <div key={item.id} className="flex items-center justify-between bg-slate-700/50 rounded-xl px-4 py-3">
+                            <div>
+                                <p className="text-sm font-bold text-white">{lens?.name || "—"} x {frame?.name || "—"}</p>
+                                <p className="text-xs text-slate-400">Precio lente: {fmt(item.specialPrice)}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${item.isActive ? "bg-emerald-900 text-emerald-300" : "bg-red-900 text-red-300"}`}>{item.isActive ? "Activo" : "Inactivo"}</span>
+                                <button onClick={() => { setEditId(item.id); setForm({ lensTypeId: item.lensTypeId, frameProductId: item.frameProductId, specialPrice: item.specialPrice, isActive: item.isActive }) }} className="p-1 text-slate-400 hover:text-white">✏️</button>
+                                <button onClick={() => handleDelete(item.id)} className="p-1 text-slate-400 hover:text-rose-400">🗑️</button>
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )

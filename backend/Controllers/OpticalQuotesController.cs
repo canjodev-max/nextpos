@@ -127,6 +127,7 @@ namespace SaasPos.Backend.Controllers
 
             // Marco
             decimal framePrice = 0;
+            decimal lensBasePrice = result.LensTypeBasePrice;
             if (request.FrameProductId.HasValue)
             {
                 var product = await _context.Products
@@ -138,11 +139,25 @@ namespace SaasPos.Backend.Controllers
                     result.FrameDescription = product.Name;
                     result.FramePrice = framePrice;
                 }
+
+                // Aplicar regla de precio especial de lente según marco
+                var frameRule = await _context.FrameLensRules
+                    .FirstOrDefaultAsync(x => x.TenantId == TenantId
+                        && x.LensTypeId == request.LensTypeId
+                        && x.FrameProductId == request.FrameProductId
+                        && x.IsActive);
+                if (frameRule != null)
+                {
+                    lensBasePrice = frameRule.SpecialPrice;
+                    result.LensTypeBasePrice = lensBasePrice;
+                    result.FrameLensRuleApplied = true;
+                    result.FrameLensRuleLabel = $"Precio especial combo: {lensBasePrice}";
+                }
             }
 
             // Calcular subtotal
             var subtotal = framePrice
-                + result.LensTypeBasePrice
+                + lensBasePrice
                 + result.GraduationCost
                 + result.LensIndexAdditionalPrice
                 + result.ExtrasTotalCost;
@@ -178,6 +193,114 @@ namespace SaasPos.Backend.Controllers
             result.Total = Math.Max(0, subtotal - totalDiscount);
             result.AppliedRules = appliedRules;
 
+            return Ok(result);
+        }
+
+        [HttpGet("lens-product")]
+        public async Task<IActionResult> GetLensProduct()
+        {
+            // Busca o crea un producto genérico "SERVICIO ÓPTICO" para el tenant
+            var existing = await _context.Products
+                .FirstOrDefaultAsync(x => x.TenantId == TenantId && x.Name == "SERVICIO ÓPTICO");
+            if (existing != null)
+                return Ok(new { id = existing.Id, name = existing.Name, price = existing.Price });
+
+            // Crear automáticamente si no existe
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(x => x.TenantId == TenantId);
+            var lensProduct = new Product
+            {
+                TenantId = TenantId,
+                Name = "SERVICIO ÓPTICO",
+                Sku = "OPTIC-" + Guid.NewGuid().ToString().Substring(0, 8),
+                InternalCode = "OPTIC",
+                Price = 0,
+                Cost = 0,
+                Stock = 9999,
+                MinStock = 0,
+                CategoryId = category?.Id ?? Guid.Empty,
+                IsActive = true,
+                SaleType = "UNIT",
+                TrackStock = false,
+                Status = "ACTIVE",
+            };
+            _context.Products.Add(lensProduct);
+            await _context.SaveChangesAsync();
+            return Ok(new { id = lensProduct.Id, name = lensProduct.Name, price = lensProduct.Price });
+        }
+
+        [HttpPost("calculate-lens-only")]
+        public async Task<IActionResult> CalculateLensOnly([FromBody] CalculateLensOnlyRequest request)
+        {
+            var result = new CalculateLensOnlyResult();
+
+            // Tipo de lente
+            var lensType = await _context.LensTypes
+                .FirstOrDefaultAsync(x => x.Id == request.LensTypeId && x.TenantId == TenantId);
+            if (lensType == null)
+                return BadRequest(new { message = "Tipo de lente no encontrado" });
+
+            decimal lensPrice = lensType.BasePrice;
+            result.LensTypeName = lensType.Name;
+
+            // Índice
+            if (request.LensIndexId.HasValue)
+            {
+                var index = await _context.LensIndexes
+                    .FirstOrDefaultAsync(x => x.Id == request.LensIndexId && x.TenantId == TenantId);
+                if (index != null)
+                {
+                    result.LensIndexName = index.Name;
+                    lensPrice += index.AdditionalPrice;
+                }
+            }
+
+            // Graduación
+            var ranges = await _context.GraduationRanges
+                .Where(x => x.TenantId == TenantId && x.IsActive)
+                .OrderBy(x => x.MinValue)
+                .ToListAsync();
+            if (ranges.Any())
+            {
+                var maxEsfera = Math.Max(Math.Abs(request.OdEsfera), Math.Abs(request.OiEsfera));
+                var matchedRange = ranges.FirstOrDefault(r => maxEsfera >= r.MinValue && maxEsfera <= r.MaxValue);
+                if (matchedRange != null)
+                {
+                    result.GraduationRangeName = $"{matchedRange.MinValue} a {matchedRange.MaxValue}";
+                    lensPrice += matchedRange.AdditionalCost;
+                }
+            }
+
+            // Extras (como toggle buttons: UV, antirreflejo, etc.)
+            if (request.ExtraIds != null && request.ExtraIds.Any())
+            {
+                var extras = await _context.LensExtras
+                    .Where(x => request.ExtraIds.Contains(x.Id) && x.TenantId == TenantId && x.IsActive)
+                    .ToListAsync();
+                foreach (var extra in extras)
+                {
+                    lensPrice += extra.Price;
+                    result.ExtraNames.Add(extra.Name);
+                }
+            }
+
+            // Aplicar regla de FrameLensRule si viene frameProductId
+            if (request.FrameProductId.HasValue)
+            {
+                var frameRule = await _context.FrameLensRules
+                    .FirstOrDefaultAsync(x => x.TenantId == TenantId
+                        && x.LensTypeId == request.LensTypeId
+                        && x.FrameProductId == request.FrameProductId
+                        && x.IsActive);
+                if (frameRule != null)
+                {
+                    lensPrice = lensPrice - lensType.BasePrice + frameRule.SpecialPrice;
+                    result.FrameLensRuleApplied = true;
+                    result.FrameLensRuleLabel = $"Precio especial combo: {frameRule.SpecialPrice}";
+                }
+            }
+
+            result.TotalPrice = lensPrice;
             return Ok(result);
         }
 
@@ -373,6 +496,8 @@ namespace SaasPos.Backend.Controllers
         public string? FrameCode { get; set; }
         public string? FrameDescription { get; set; }
         public decimal? FramePrice { get; set; }
+        public bool FrameLensRuleApplied { get; set; }
+        public string? FrameLensRuleLabel { get; set; }
         public decimal Subtotal { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal Total { get; set; }
@@ -414,5 +539,32 @@ namespace SaasPos.Backend.Controllers
         public decimal DiscountAmount { get; set; }
         public decimal Total { get; set; }
         public List<AppliedRuleInfo>? AppliedRules { get; set; }
+    }
+
+    public class CalculateLensOnlyRequest
+    {
+        public Guid LensTypeId { get; set; }
+        public Guid? LensIndexId { get; set; }
+        public Guid? FrameProductId { get; set; }
+        public List<Guid>? ExtraIds { get; set; }
+        public decimal OdEsfera { get; set; }
+        public decimal OdCilindro { get; set; }
+        public decimal OdEje { get; set; }
+        public decimal OdAdicion { get; set; }
+        public decimal OiEsfera { get; set; }
+        public decimal OiCilindro { get; set; }
+        public decimal OiEje { get; set; }
+        public decimal OiAdicion { get; set; }
+    }
+
+    public class CalculateLensOnlyResult
+    {
+        public string LensTypeName { get; set; } = "";
+        public string? LensIndexName { get; set; }
+        public string? GraduationRangeName { get; set; }
+        public List<string> ExtraNames { get; set; } = new();
+        public bool FrameLensRuleApplied { get; set; }
+        public string? FrameLensRuleLabel { get; set; }
+        public decimal TotalPrice { get; set; }
     }
 }

@@ -83,7 +83,8 @@ namespace SaasPos.Backend.Controllers
                 ProductId = request.ProductId,
                 Quantity = request.Quantity,
                 Price = product.Price,
-                Subtotal = subtotal
+                Subtotal = subtotal,
+                CustomName = request.CustomName
             };
 
             _context.SaleItems.Add(item);
@@ -255,6 +256,7 @@ namespace SaasPos.Backend.Controllers
                     i.Quantity,
                     i.Price,
                     i.Subtotal,
+                    i.CustomName,
                     ProductName = i.Product.Name // Send name for frontend
                 })
             });
@@ -483,6 +485,7 @@ namespace SaasPos.Backend.Controllers
     {
         public Guid ProductId { get; set; }
         public decimal Quantity { get; set; }
+        public string? CustomName { get; set; }
     }
 
     public class PayRequest

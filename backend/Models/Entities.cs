@@ -121,6 +121,7 @@ namespace SaasPos.Backend.Models
         public decimal Price { get; set; }
         public decimal Subtotal { get; set; }
         public decimal DiscountApplied { get; set; } // New: Track discount per item
+        public string? CustomName { get; set; } // Para ítems compuestos como lentes ópticos
         
         public Sale Sale { get; set; }
         public Product Product { get; set; }

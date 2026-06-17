@@ -224,5 +224,57 @@ namespace SaasPos.Backend.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "Rango eliminado" });
         }
+        // ═══════════════════════════════════════════════
+        //  FRAME LENS RULES (precio especial de lente según marco)
+        // ═══════════════════════════════════════════════
+        [HttpGet("frame-lens-rules")]
+        public async Task<IActionResult> GetFrameLensRules()
+        {
+            var items = await _context.FrameLensRules
+                .Where(x => x.TenantId == TenantId)
+                .OrderBy(x => x.CreatedAt)
+                .ToListAsync();
+            return Ok(items);
+        }
+
+        [HttpPost("frame-lens-rules")]
+        public async Task<IActionResult> CreateFrameLensRule([FromBody] FrameLensRule request)
+        {
+            var item = new FrameLensRule
+            {
+                TenantId = TenantId,
+                LensTypeId = request.LensTypeId,
+                FrameProductId = request.FrameProductId,
+                SpecialPrice = request.SpecialPrice,
+                IsActive = request.IsActive,
+            };
+            _context.FrameLensRules.Add(item);
+            await _context.SaveChangesAsync();
+            return Ok(item);
+        }
+
+        [HttpPut("frame-lens-rules/{id}")]
+        public async Task<IActionResult> UpdateFrameLensRule(Guid id, [FromBody] FrameLensRule request)
+        {
+            var item = await _context.FrameLensRules.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == TenantId);
+            if (item == null) return NotFound();
+            item.LensTypeId = request.LensTypeId;
+            item.FrameProductId = request.FrameProductId;
+            item.SpecialPrice = request.SpecialPrice;
+            item.IsActive = request.IsActive;
+            item.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return Ok(item);
+        }
+
+        [HttpDelete("frame-lens-rules/{id}")]
+        public async Task<IActionResult> DeleteFrameLensRule(Guid id)
+        {
+            var item = await _context.FrameLensRules.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == TenantId);
+            if (item == null) return NotFound();
+            _context.FrameLensRules.Remove(item);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Regla eliminada" });
+        }
     }
 }

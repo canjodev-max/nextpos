@@ -392,6 +392,7 @@ namespace SaasPos.Backend.Data
         public DbSet<OpticalPrescription> OpticalPrescriptions { get; set; }
         public DbSet<OpticalQuote> OpticalQuotes { get; set; }
         public DbSet<PromotionalRule> PromotionalRules { get; set; }
+        public DbSet<FrameLensRule> FrameLensRules { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

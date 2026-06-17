@@ -312,6 +312,31 @@ using (var scope = app.Services.CreateScope())
                 catch (Exception colEx) { Console.WriteLine($"Optics migration skipped: {colEx.Message}"); }
             }
 
+            // Migración: tabla FrameLensRules
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""FrameLensRules"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""LensTypeId"" uuid NOT NULL,
+                    ""FrameProductId"" uuid NOT NULL,
+                    ""SpecialPrice"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );");
+                Console.WriteLine("FrameLensRules table created.");
+            }
+            catch (Exception colEx) { Console.WriteLine($"FrameLensRules migration skipped: {colEx.Message}"); }
+
+            // Migración: CustomName en SaleItem
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"ALTER TABLE ""SaleItems"" ADD COLUMN IF NOT EXISTS ""CustomName"" text NULL;");
+                Console.WriteLine("SaleItem.CustomName column added.");
+            }
+            catch (Exception colEx) { Console.WriteLine($"SaleItem.CustomName migration skipped: {colEx.Message}"); }
+
             // Migración: cambiar Plan a BusinessType en Tenants (para óptica)
             try
             {

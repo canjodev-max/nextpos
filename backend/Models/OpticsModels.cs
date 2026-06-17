@@ -151,4 +151,17 @@ namespace SaasPos.Backend.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
+
+    public class FrameLensRule
+    {
+        [Key]
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid TenantId { get; set; }
+        public Guid LensTypeId { get; set; }
+        public Guid FrameProductId { get; set; }
+        public decimal SpecialPrice { get; set; }
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
 }

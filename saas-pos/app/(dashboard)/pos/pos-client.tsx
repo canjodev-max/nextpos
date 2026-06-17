@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { WeightInputModal } from "@/components/WeightInputModal"
 import { ReturnModal } from "@/components/pos/ReturnModal"
 import { QuickWasteModal } from "@/components/pos/QuickWasteModal"
+import { OpticComposerModal } from "@/components/pos/OpticComposerModal"
 import { OpenCashModal } from "@/components/cash/OpenCashModal"
 import { CloseCashWizard } from "@/components/cash/CloseCashWizard"
 import { CashMovementsModal } from "@/components/cash/CashMovementsModal"
@@ -46,6 +47,7 @@ type CartItem = {
     quantity: number
     price: number
     saleItemId?: string
+    customName?: string
 }
 
 const formatMoney = (amount: number) => {
@@ -79,6 +81,7 @@ export default function POSClient() {
     const [wasteModalOpen, setWasteModalOpen] = useState(false)
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
     const [closeCashOpen, setCloseCashOpen] = useState(false)
+    const [opticComposerOpen, setOpticComposerOpen] = useState(false)
     const [registerId, setRegisterId] = useState<string>("")
     const [cashOpen, setCashOpen] = useState<boolean>(false)
     const [showCashModal, setShowCashModal] = useState(false)
@@ -176,7 +179,7 @@ export default function POSClient() {
         return data.sale_id
     }
 
-    const processAddToCart = async (product: Product, quantity: number = 1) => {
+    const processAddToCart = async (product: Product, quantity: number = 1, customPrice?: number, customName?: string) => {
         const currentInCart = cart.find(i => i.product.id === product.id)?.quantity || 0
         if (product.trackStock && product.stock < (currentInCart + quantity)) {
             alert(`Stock insuficiente. Disponible: ${product.stock}`)
@@ -186,7 +189,7 @@ export default function POSClient() {
         setLoading(true)
         try {
             const saleId = await getOrCreateSaleId()
-            const finalPrice = calculateFinalPrice(product, quantity)
+            const finalPrice = customPrice ?? calculateFinalPrice(product, quantity)
             const token = localStorage.getItem("token")
             const res = await fetch(`${API_URL}/api/sales/${saleId}/items`, {
                 method: 'POST',
@@ -194,12 +197,12 @@ export default function POSClient() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ productId: product.id, quantity })
+                body: JSON.stringify({ productId: product.id, quantity, customName })
             })
 
             if (res.ok) {
                 const data = await res.json()
-                setCart(prev => [...prev, { product, quantity, price: finalPrice, saleItemId: data.itemId }])
+                setCart(prev => [...prev, { product, quantity, price: finalPrice, saleItemId: data.itemId, customName }])
                 localStorage.setItem("pos_last_active", Date.now().toString())
                 setManualInput("")
                 setPendingMultiplier(1)
@@ -210,6 +213,24 @@ export default function POSClient() {
             setLoading(false)
             manualInputRef.current?.focus()
         }
+    }
+
+    const handleOpticAddToCart = async (productId: string, quantity: number, price: number, customName: string) => {
+        const fakeProduct: Product = {
+            id: productId,
+            name: customName,
+            price: price,
+            imageUrl: null,
+            categoryId: "",
+            category: null,
+            saleType: "UNIT",
+            internalCode: "OPTIC",
+            barcode: null,
+            stock: 9999,
+            discountPercentage: 0,
+            trackStock: false,
+        }
+        await processAddToCart(fakeProduct, quantity, price, customName)
     }
     const initiateAddToCart = (product: Product) => {
         let quantity = pendingMultiplier
@@ -606,7 +627,7 @@ export default function POSClient() {
                                             {Number(item.quantity).toFixed(item.product.saleType === 'WEIGHT' ? 2 : 0)}
                                         </div>
                                         <div className="flex flex-col max-w-[120px]">
-                                            <p className="font-bold text-xs truncate uppercase leading-none mb-1">{item.product.name}</p>
+                                            <p className="font-bold text-xs truncate uppercase leading-none mb-1">{item.customName || item.product.name}</p>
                                             <p className="text-[10px] text-slate-400 font-bold">{formatMoney(item.price)} ea</p>
                                         </div>
                                     </div>
@@ -658,6 +679,11 @@ export default function POSClient() {
 
             <footer className="bg-slate-900 text-white flex items-center px-3 md:px-6 justify-between shrink-0 border-t border-slate-800 shadow-2xl z-20 overflow-x-auto h-14">
                 <div className="flex items-center gap-4 md:gap-8 min-w-max">
+                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setOpticComposerOpen(true)}>
+                        <span className="material-symbols-outlined text-sm text-slate-500 group-hover:text-primary transition-colors">visibility</span>
+                        <span className="text-[10px] text-slate-500 font-black uppercase group-hover:text-slate-300 transition-colors">Óptica</span>
+                    </div>
+                    <div className="h-4 w-px bg-slate-800"></div>
                     <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setReturnModalOpen(true)}>
                         <kbd className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-black text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">F9</kbd>
                         <span className="text-[10px] text-slate-500 font-black uppercase group-hover:text-slate-300 transition-colors">Devoluciones</span>
@@ -715,6 +741,12 @@ export default function POSClient() {
                 onConfirm={(weight) => selectedWeightProduct && processAddToCart(selectedWeightProduct, weight)}
                 productName={selectedWeightProduct?.name || ""}
                 pricePerKg={Number(selectedWeightProduct?.price || 0)}
+            />
+            <OpticComposerModal
+                isOpen={opticComposerOpen}
+                onClose={() => setOpticComposerOpen(false)}
+                onAddToCart={handleOpticAddToCart}
+                selectedFrameId={null}
             />
             <ReturnModal isOpen={returnModalOpen} onClose={() => setReturnModalOpen(false)} onSuccess={() => router.refresh()} />
             <QuickWasteModal isOpen={wasteModalOpen} onClose={() => setWasteModalOpen(false)} onSuccess={() => router.refresh()} />
