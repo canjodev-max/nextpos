@@ -88,7 +88,7 @@ namespace SaasPos.Backend.Controllers
                 }
             }
 
-            // Rangos de graduación - OD
+            // Rangos de graduación - usa la esfera con mayor valor absoluto (soporta valores negativos)
             var ranges = await _context.GraduationRanges
                 .Where(x => x.TenantId == TenantId && x.IsActive)
                 .OrderBy(x => x.MinValue)
@@ -96,11 +96,10 @@ namespace SaasPos.Backend.Controllers
 
             if (ranges.Any())
             {
-                var maxEsfera = Math.Max(
-                    Math.Abs(request.OdEsfera),
-                    Math.Abs(request.OiEsfera)
-                );
-                var matchedRange = ranges.FirstOrDefault(r => maxEsfera >= r.MinValue && maxEsfera <= r.MaxValue);
+                var odAbs = Math.Abs(request.OdEsfera);
+                var oiAbs = Math.Abs(request.OiEsfera);
+                var maxEsfera = Math.Max(odAbs, oiAbs);
+                var matchedRange = ranges.FirstOrDefault(r => maxEsfera >= Math.Abs(r.MinValue) && maxEsfera <= Math.Abs(r.MaxValue));
                 if (matchedRange != null)
                 {
                     result.GraduationCost = matchedRange.AdditionalCost;
@@ -262,8 +261,10 @@ namespace SaasPos.Backend.Controllers
                 .ToListAsync();
             if (ranges.Any())
             {
-                var maxEsfera = Math.Max(Math.Abs(request.OdEsfera), Math.Abs(request.OiEsfera));
-                var matchedRange = ranges.FirstOrDefault(r => maxEsfera >= r.MinValue && maxEsfera <= r.MaxValue);
+                var odAbs = Math.Abs(request.OdEsfera);
+                var oiAbs = Math.Abs(request.OiEsfera);
+                var maxEsfera = Math.Max(odAbs, oiAbs);
+                var matchedRange = ranges.FirstOrDefault(r => maxEsfera >= Math.Abs(r.MinValue) && maxEsfera <= Math.Abs(r.MaxValue));
                 if (matchedRange != null)
                 {
                     result.GraduationRangeName = $"{matchedRange.MinValue} a {matchedRange.MaxValue}";

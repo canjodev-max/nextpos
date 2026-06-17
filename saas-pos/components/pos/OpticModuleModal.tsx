@@ -112,6 +112,7 @@ function CotizadorSection({ onAddLensToCart }: { onAddLensToCart: OpticModuleMod
         frameLensRuleApplied?: boolean; frameLensRuleLabel?: string;
     } | null>(null)
     const [saving, setSaving] = useState(false)
+    const [manualPrice, setManualPrice] = useState<number | null>(null)
 
     const toggleExtra = (id: string) => {
         setSelectedExtras(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -169,13 +170,15 @@ function CotizadorSection({ onAddLensToCart }: { onAddLensToCart: OpticModuleMod
             const gradStr = `(OD: ${od.esfera} / OI: ${oi.esfera})`
             const customName = `LENTE ${result.lensTypeName}${extraStr} ${gradStr}`
 
-            await onAddLensToCart(prod.id, 1, result.totalPrice, customName)
-            toast.success("Lente agregado al ticket")
+            const finalPrice = manualPrice ?? result.totalPrice
+
+            await onAddLensToCart(prod.id, 1, finalPrice, customName)
+            toast.success(`Lente agregado al ticket — ${fmt(finalPrice)}`)
             setStep(1)
             setSelectedLensType(""); setSelectedLensIndex(""); setSelectedExtras([])
             setOd({ esfera: 0, cilindro: 0, eje: 0, adicion: 0 })
             setOi({ esfera: 0, cilindro: 0, eje: 0, adicion: 0 })
-            setResult(null)
+            setResult(null); setManualPrice(null)
         } catch (err: unknown) {
             toast.error(err instanceof Error ? err.message : "Error")
         } finally { setSaving(false) }
@@ -339,8 +342,26 @@ function CotizadorSection({ onAddLensToCart }: { onAddLensToCart: OpticModuleMod
                             </div>
                         )}
                         <div className="border-t border-slate-600 pt-3 flex justify-between text-lg font-black">
-                            <span className="text-white">TOTAL</span>
+                            <span className="text-white">TOTAL CALCULADO</span>
                             <span className="text-primary">{fmt(result.totalPrice)}</span>
+                        </div>
+                        <div className="flex items-center gap-3 pt-2 border-t border-slate-600">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ajustar precio:</span>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setManualPrice(p => (p ?? result.totalPrice) - 5000)}
+                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-bold text-white transition-colors">-5000</button>
+                                <button onClick={() => setManualPrice(p => (p ?? result.totalPrice) - 10000)}
+                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-bold text-white transition-colors">-10000</button>
+                                <input type="number" value={manualPrice ?? result.totalPrice}
+                                    onChange={e => setManualPrice(parseFloat(e.target.value) || 0)}
+                                    className="w-32 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm font-black text-center" />
+                                <button onClick={() => setManualPrice(p => (p ?? result.totalPrice) + 5000)}
+                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-bold text-white transition-colors">+5000</button>
+                                <button onClick={() => setManualPrice(p => (p ?? result.totalPrice) + 10000)}
+                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-bold text-white transition-colors">+10000</button>
+                                <button onClick={() => setManualPrice(null)}
+                                    className="px-3 py-1.5 bg-amber-700 hover:bg-amber-600 rounded-lg text-xs font-bold text-white transition-colors">Rest.</button>
+                            </div>
                         </div>
                     </div>
                     <div className="text-xs text-slate-500 bg-slate-800/50 rounded-xl px-4 py-2">
