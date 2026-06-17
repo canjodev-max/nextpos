@@ -11,7 +11,7 @@ type Tenant = {
     slug: string
     email: string | null
     phone: string | null
-    plan: string
+    businessType: string
     isActive: boolean
     createdAt: string
     userCount: number
@@ -48,12 +48,13 @@ type Role = {
     permissions: string[]
 }
 
-const PLANS = ["FREE", "PRO", "ENTERPRISE"]
+const BUSINESS_TYPES = ["TIENDA", "OPTICA", "PELUQUERIA", "VETERINARIA"]
 
-const planColor: Record<string, string> = {
-    FREE: "bg-slate-700 text-slate-300",
-    PRO: "bg-blue-900 text-blue-300",
-    ENTERPRISE: "bg-purple-900 text-purple-300",
+const businessTypeColor: Record<string, string> = {
+    TIENDA: "bg-emerald-900 text-emerald-300",
+    OPTICA: "bg-blue-900 text-blue-300",
+    PELUQUERIA: "bg-pink-900 text-pink-300",
+    VETERINARIA: "bg-amber-900 text-amber-300",
 }
 
 const fmt = (n: number) =>
@@ -121,7 +122,7 @@ export default function SuperAdminPage() {
                 method: "PUT",
                 headers,
                 body: JSON.stringify({
-                    name: t.name, slug: t.slug, plan: t.plan, isActive: true,
+                    name: t.name, slug: t.slug, businessType: t.businessType, isActive: true,
                     email: t.email, phone: t.phone,
                 }),
             })
@@ -346,7 +347,7 @@ export default function SuperAdminPage() {
                             <thead>
                                 <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-widest">
                                     <th className="text-left px-6 py-4">Negocio</th>
-                                    <th className="text-left px-4 py-4">Plan</th>
+                                    <th className="text-left px-4 py-4">Tipo</th>
                                     <th className="text-right px-4 py-4">Usuarios</th>
                                     <th className="text-right px-4 py-4">Productos</th>
                                     <th className="text-right px-4 py-4">Ventas</th>
@@ -368,7 +369,7 @@ export default function SuperAdminPage() {
                                             {t.email && <p className="text-xs text-slate-500">{t.email}</p>}
                                         </td>
                                         <td className="px-4 py-4">
-                                            <span className={`text-xs font-black px-2 py-1 rounded-full uppercase ${planColor[t.plan] ?? "bg-slate-700 text-slate-300"}`}>{t.plan}</span>
+                                            <span className={`text-xs font-black px-2 py-1 rounded-full uppercase ${businessTypeColor[t.businessType] ?? "bg-slate-700 text-slate-300"}`}>{t.businessType === "TIENDA" ? "Tienda" : t.businessType === "OPTICA" ? "Óptica" : t.businessType === "PELUQUERIA" ? "Peluquería" : "Veterinaria"}</span>
                                         </td>
                                         <td className="px-4 py-4 text-right text-slate-300">{t.userCount}</td>
                                         <td className="px-4 py-4 text-right text-slate-300">{t.productCount}</td>
@@ -558,7 +559,7 @@ function TenantModal({
         email: t?.email ?? "",
         phone: t?.phone ?? "",
         address: "",
-        plan: t?.plan ?? "FREE",
+        businessType: t?.businessType ?? "TIENDA",
         isActive: t?.isActive ?? true,
         adminName: "",
         adminEmail: "",
@@ -627,8 +628,8 @@ function TenantModal({
             const url = isEdit ? `${API_URL}/api/tenants/${tenant!.id}` : `${API_URL}/api/tenants`
             const method = isEdit ? "PUT" : "POST"
             const body = isEdit
-                ? { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, isActive: form.isActive, ...sifenFields() }
-                : { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, plan: form.plan, adminName: form.adminName, adminEmail: form.adminEmail, adminPassword: form.adminPassword, ...sifenFields() }
+                ? { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, businessType: form.businessType, isActive: form.isActive, ...sifenFields() }
+                : { name: form.name, slug: form.slug, email: form.email, phone: form.phone, address: form.address, businessType: form.businessType, adminName: form.adminName, adminEmail: form.adminEmail, adminPassword: form.adminPassword, ...sifenFields() }
 
             const res = await fetch(url, { method, headers, body: JSON.stringify(body) })
             const data = await res.json()
@@ -686,9 +687,13 @@ function TenantModal({
                                     <input required value={form.slug} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))} className={inputCls} placeholder="supermercado-don-juan" />
                                 </div>
                                 <div>
-                                    <label className={labelCls}>Plan</label>
-                                    <select value={form.plan} onChange={(e) => set("plan", e.target.value)} className={inputCls}>
-                                        {PLANS.map((p) => <option key={p}>{p}</option>)}
+                                    <label className={labelCls}>Tipo de Negocio</label>
+                                    <select value={form.businessType} onChange={(e) => set("businessType", e.target.value)} className={inputCls}>
+                                        {BUSINESS_TYPES.map((bt) => (
+                                            <option key={bt} value={bt}>
+                                                {bt === "TIENDA" ? "Tienda" : bt === "OPTICA" ? "Óptica" : bt === "PELUQUERIA" ? "Peluquería" : "Veterinaria"}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>

@@ -31,7 +31,7 @@ namespace SaasPos.Backend.Controllers
                     t.Slug,
                     t.Email,
                     t.Phone,
-                    t.Plan,
+                    t.BusinessType,
                     t.IsActive,
                     t.CreatedAt,
                     UserCount = _context.Users.Count(u => u.TenantId == t.Id && u.DeletedAt == null),
@@ -75,7 +75,7 @@ namespace SaasPos.Backend.Controllers
                 Phone = request.Phone,
                 Address = request.Address,
                 LogoUrl = request.LogoUrl,
-                Plan = request.Plan ?? "FREE",
+                BusinessType = request.BusinessType ?? "TIENDA",
                 IsActive = true,
                 // Branding
                 PrimaryColor = request.PrimaryColor ?? "#135bec",
@@ -130,7 +130,7 @@ namespace SaasPos.Backend.Controllers
 
             return Ok(new
             {
-                tenant = new { tenant.Id, tenant.Name, tenant.Slug, tenant.Plan },
+                tenant = new { tenant.Id, tenant.Name, tenant.Slug, tenant.BusinessType },
                 admin = new { adminUser.Id, adminUser.Name, adminUser.Email }
             });
         }
@@ -155,7 +155,7 @@ namespace SaasPos.Backend.Controllers
             tenant.Phone = request.Phone;
             tenant.Address = request.Address;
             tenant.LogoUrl = request.LogoUrl;
-            tenant.Plan = request.Plan;
+            if (request.BusinessType != null) tenant.BusinessType = request.BusinessType;
             tenant.IsActive = request.IsActive;
             // Branding
             tenant.PrimaryColor = request.PrimaryColor ?? tenant.PrimaryColor;
@@ -252,7 +252,7 @@ namespace SaasPos.Backend.Controllers
             var recentTenants = await _context.Tenants
                 .OrderByDescending(t => t.CreatedAt)
                 .Take(5)
-                .Select(t => new { t.Id, t.Name, t.Slug, t.Plan, t.IsActive, t.CreatedAt })
+                .Select(t => new { t.Id, t.Name, t.Slug, t.BusinessType, t.IsActive, t.CreatedAt })
                 .ToListAsync();
 
             return Ok(new
@@ -275,7 +275,7 @@ namespace SaasPos.Backend.Controllers
         public string? Phone { get; set; }
         public string? Address { get; set; }
         public string? LogoUrl { get; set; }
-        public string? Plan { get; set; }
+        public string? BusinessType { get; set; }
         // Branding
         public string? PrimaryColor { get; set; }
         public string? SecondaryColor { get; set; }
@@ -321,7 +321,7 @@ namespace SaasPos.Backend.Controllers
         public string? Phone { get; set; }
         public string? Address { get; set; }
         public string? LogoUrl { get; set; }
-        public string Plan { get; set; }
+        public string? BusinessType { get; set; }
         public bool IsActive { get; set; }
         // Branding
         public string? PrimaryColor { get; set; }

@@ -94,6 +94,7 @@ namespace SaasPos.Backend.Controllers
                     secondaryColor = tenant?.SecondaryColor,
                     darkPrimaryColor = tenant?.DarkPrimaryColor,
                     darkSecondaryColor = tenant?.DarkSecondaryColor,
+                    businessType = tenant?.BusinessType,
                 }
             });
         }

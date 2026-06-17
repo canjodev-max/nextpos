@@ -41,7 +41,7 @@ namespace SaasPos.Backend.Data
                     Name     = "Negocio Demo",
                     Slug     = "demo",
                     Email    = "demo@saaspos.com",
-                    Plan     = "FREE",
+                    BusinessType = "TIENDA",
                     IsActive = true
                 });
                 SaveChanges();
@@ -385,6 +385,13 @@ namespace SaasPos.Backend.Data
         public DbSet<DebtPayment> DebtPayments { get; set; }
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<LensType> LensTypes { get; set; }
+        public DbSet<LensIndex> LensIndexes { get; set; }
+        public DbSet<LensExtra> LensExtras { get; set; }
+        public DbSet<GraduationRange> GraduationRanges { get; set; }
+        public DbSet<OpticalPrescription> OpticalPrescriptions { get; set; }
+        public DbSet<OpticalQuote> OpticalQuotes { get; set; }
+        public DbSet<PromotionalRule> PromotionalRules { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

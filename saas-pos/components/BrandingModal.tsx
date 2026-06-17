@@ -49,7 +49,6 @@ export default function BrandingModal({
       const payload = {
         name: form.name,
         slug: tenant.name.toLowerCase().replace(/\s+/g, "-"),
-        plan: "FREE",
         isActive: true,
         logoUrl: form.logoUrl || null,
         primaryColor: form.primaryColor,

@@ -205,6 +205,122 @@ using (var scope = app.Services.CreateScope())
             catch (Exception colEx) { Console.WriteLine($"Column migration skipped: {colEx.Message}"); }
         }
 
+            // Migración: tablas del Módulo Óptica
+            var opticsMigrations = new[]
+            {
+                @"CREATE TABLE IF NOT EXISTS ""LensTypes"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""Name"" text NOT NULL,
+                    ""BasePrice"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""LensIndexes"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""Name"" text NOT NULL,
+                    ""AdditionalPrice"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""LensExtras"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""Name"" text NOT NULL,
+                    ""Price"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""GraduationRanges"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""MinValue"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""MaxValue"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""AdditionalCost"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""OpticalPrescriptions"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""OdEsfera"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OdCilindro"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OdEje"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OdAdicion"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OiEsfera"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OiCilindro"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OiEje"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""OiAdicion"" numeric(5,2) NOT NULL DEFAULT 0,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""OpticalQuotes"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""CustomerId"" uuid NULL,
+                    ""FrameProductId"" uuid NULL,
+                    ""FrameCode"" text NULL,
+                    ""FrameDescription"" text NULL,
+                    ""FrameBrand"" text NULL,
+                    ""FramePrice"" numeric(12,2) NULL,
+                    ""LensTypeId"" uuid NULL,
+                    ""LensTypeName"" text NULL,
+                    ""LensTypeBasePrice"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""LensIndexId"" uuid NULL,
+                    ""LensIndexName"" text NULL,
+                    ""LensIndexAdditionalPrice"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""PrescriptionId"" uuid NULL,
+                    ""GraduationRangeOdId"" uuid NULL,
+                    ""GraduationRangeOdCost"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""GraduationRangeOiId"" uuid NULL,
+                    ""GraduationRangeOiCost"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""ExtraIds"" text NOT NULL DEFAULT '[]',
+                    ""ExtrasTotalCost"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""Subtotal"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""DiscountAmount"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""Total"" numeric(12,2) NOT NULL DEFAULT 0,
+                    ""AppliedRules"" text NOT NULL DEFAULT '[]',
+                    ""Status"" text NOT NULL DEFAULT 'QUOTE',
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+                @"CREATE TABLE IF NOT EXISTS ""PromotionalRules"" (
+                    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""TenantId"" uuid NOT NULL,
+                    ""Name"" text NOT NULL,
+                    ""Description"" text NOT NULL,
+                    ""RuleType"" text NOT NULL,
+                    ""TargetId"" text NULL,
+                    ""ConditionType"" text NULL,
+                    ""ConditionValue"" text NULL,
+                    ""BenefitType"" text NULL,
+                    ""BenefitValue"" text NULL,
+                    ""IsActive"" boolean NOT NULL DEFAULT true,
+                    ""StartDate"" timestamp NULL,
+                    ""EndDate"" timestamp NULL,
+                    ""CreatedAt"" timestamp NOT NULL DEFAULT now(),
+                    ""UpdatedAt"" timestamp NOT NULL DEFAULT now()
+                );",
+            };
+            foreach (var sql in opticsMigrations)
+            {
+                try { db.Database.ExecuteSqlRaw(sql); }
+                catch (Exception colEx) { Console.WriteLine($"Optics migration skipped: {colEx.Message}"); }
+            }
+
+            // Migración: cambiar Plan a BusinessType en Tenants (para óptica)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""BusinessType"" text NOT NULL DEFAULT 'TIENDA';");
+                db.Database.ExecuteSqlRaw(@"UPDATE ""Tenants"" SET ""BusinessType"" = COALESCE(NULLIF(""Plan"", ''), 'TIENDA') WHERE ""BusinessType"" IS NULL OR ""BusinessType"" = '';");
+                Console.WriteLine("BusinessType migration applied.");
+            }
+            catch (Exception colEx) { Console.WriteLine($"BusinessType migration skipped: {colEx.Message}"); }
+
             // Migración: campos Branding / Tema en Tenants
             var brandingMigrations = new[]
             {

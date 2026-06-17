@@ -295,7 +295,7 @@ namespace SaasPos.Backend.Models
         public string? Phone { get; set; }
         public string? Address { get; set; }
         public string? LogoUrl { get; set; }
-        public string Plan { get; set; } = "FREE"; // FREE, PRO, ENTERPRISE
+        public string BusinessType { get; set; } = "TIENDA"; // TIENDA, OPTICA, PELUQUERIA, VETERINARIA
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -81,6 +81,20 @@ export default function DashboardLayout({
         }
         return "User"
     })
+    const [businessType, setBusinessType] = useState<string>(() => {
+        if (typeof window !== "undefined") {
+            const userStr = localStorage.getItem("user")
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr)
+                    return user.businessType || ""
+                } catch {
+                    return ""
+                }
+            }
+        }
+        return ""
+    })
 
     useEffect(() => {
         const token = localStorage.getItem("token")
@@ -198,6 +212,16 @@ export default function DashboardLayout({
                                 <span className="text-sm font-bold uppercase tracking-tighter italic">Accesos</span>
                             </Link>
 
+                            {businessType === "OPTICA" && (
+                                <Link
+                                    href="/optica"
+                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${pathname.startsWith('/optica') ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <span className="material-symbols-outlined">visibility</span>
+                                    <span className="text-sm font-bold uppercase tracking-tighter italic">Óptica</span>
+                                </Link>
+                            )}
+
                             <div className="pt-4 pb-1 px-3">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Sistema</p>
                             </div>
@@ -267,7 +291,8 @@ export default function DashboardLayout({
                              pathname === '/customers' ? 'Customers' :
                              pathname === '/roles' ? 'Roles & Access' :
                              pathname === '/profile' ? 'Configuración' :
-                             pathname === '/superadmin' ? 'Panel Superadmin' : 'Dashboard Overview'}
+                             pathname === '/superadmin' ? 'Panel Superadmin' :
+                             pathname.startsWith('/optica') ? 'Módulo Óptica' : 'Dashboard Overview'}
                         </h2>
                         
                     </div>

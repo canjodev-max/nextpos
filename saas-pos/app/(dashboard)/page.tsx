@@ -12,6 +12,11 @@ const formatMoney = (amount: number) => {
 
 export default function DashboardOverview() {
     const router = useRouter()
+    const [businessType, setBusinessType] = useState("")
+    useEffect(() => {
+        const u = localStorage.getItem("user")
+        if (u) try { const d = JSON.parse(u); setBusinessType(d.businessType || "") } catch {}
+    }, [])
     const [stats, setStats] = useState({
         dailySales: 4250000,
         transactions: 24,
@@ -161,6 +166,53 @@ export default function DashboardOverview() {
                             </div>
                         </div>
                     </div>
+
+                    {businessType === "OPTICA" && (
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-700 shadow-sm">
+                            <div className="flex items-center justify-between mb-6">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">visibility</span>
+                                    Óptica
+                                </h4>
+                                <span className="text-primary material-symbols-outlined">glasses</span>
+                            </div>
+                            <div className="space-y-3">
+                                <button onClick={() => router.push('/optica')}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all group">
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-primary">calculate</span>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black text-white uppercase tracking-tighter">Cotizador</p>
+                                            <p className="text-[10px] text-slate-400">Cotización de lentes</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight className="size-4 text-slate-500 group-hover:text-primary transition-colors" />
+                                </button>
+                                <button onClick={() => router.push('/optica')}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all group">
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-amber-400">settings</span>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black text-white uppercase tracking-tighter">Configuración</p>
+                                            <p className="text-[10px] text-slate-400">Lentes, índices, extras</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight className="size-4 text-slate-500 group-hover:text-amber-400 transition-colors" />
+                                </button>
+                                <button onClick={() => router.push('/optica')}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all group">
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-emerald-400">history</span>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black text-white uppercase tracking-tighter">Historial</p>
+                                            <p className="text-[10px] text-slate-400">Cotizaciones anteriores</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight className="size-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="bg-primary p-8 rounded-[2.5rem] shadow-2xl shadow-primary/40 relative overflow-hidden group">
                         <div className="absolute -right-8 -bottom-8 size-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
