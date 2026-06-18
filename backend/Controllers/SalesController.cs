@@ -16,16 +16,16 @@ namespace SaasPos.Backend.Controllers
         private readonly InventoryService _inventory;
         private readonly DebtService _debtService;
         private readonly CashService _cashService;
-    private readonly FactPyService _factPy;
+        private readonly FactPyService _factPy;
 
-    public SalesController(AppDbContext context, InventoryService inventory, DebtService debtService, CashService cashService, FactPyService factPy)
-    {
-        _context = context;
-        _inventory = inventory;
-        _debtService = debtService;
-        _cashService = cashService;
-        _factPy = factPy;
-    }
+        public SalesController(AppDbContext context, InventoryService inventory, DebtService debtService, CashService cashService, FactPyService factPy)
+        {
+            _context = context;
+            _inventory = inventory;
+            _debtService = debtService;
+            _cashService = cashService;
+            _factPy = factPy;
+        }
 
         [HttpPost]
         public async Task<IActionResult> CreateSale([FromBody] CreateSaleRequest request)
